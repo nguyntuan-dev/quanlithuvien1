@@ -1,0 +1,62 @@
+# Node.js
+node_modules/
+dist/
+build/
+.npm/
+
+# Python / FastAPI
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+venv/
+venv312/
+venv312_test/
+.Python
+env/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Environment variables
+.env
+.env.*
+!.env.example
+
+# Logs and databases
+logs/
+*.log
+*.sqlite3
+*.db
+
+# Temporary / Scratch directories
+scratch/
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# IDEs and Editors
+.vscode/
+.idea/
+*.swp
+*.swo

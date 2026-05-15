@@ -3,7 +3,7 @@ import toast from 'react-hot-toast'
 
 // ── Axios instance ───────────────────────────────────────────────
 const api = axios.create({
-  baseURL: '/api', 
+  baseURL: import.meta.env.VITE_API_URL || '/api', 
 })
 
 // Request interceptor: thêm token
