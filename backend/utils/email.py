@@ -8,8 +8,8 @@ load_dotenv()
 
 SMTP_SERVER = os.getenv("SMTP_SERVER", "smtp.gmail.com")
 SMTP_PORT = int(os.getenv("SMTP_PORT", 587))
-SENDER_EMAIL = os.getenv("SENDER_EMAIL", "your-email@gmail.com")
-SENDER_PASSWORD = os.getenv("SENDER_PASSWORD", "your-password")
+SENDER_EMAIL = os.getenv("SENDER_EMAIL") or os.getenv("EMAIL_USER", "your-email@gmail.com")
+SENDER_PASSWORD = os.getenv("SENDER_PASSWORD") or os.getenv("EMAIL_PASSWORD", "your-password")
 LIBRARY_NAME = "Thư Viện Pro"
 
 def send_email(to_email: str, subject: str, body: str, is_html: bool = True):
@@ -17,13 +17,13 @@ def send_email(to_email: str, subject: str, body: str, is_html: bool = True):
     # Đảm bảo load lại .env
     load_dotenv()
     
-    sender = os.getenv("SENDER_EMAIL")
-    password = os.getenv("SENDER_PASSWORD")
+    sender = os.getenv("SENDER_EMAIL") or os.getenv("EMAIL_USER")
+    password = os.getenv("SENDER_PASSWORD") or os.getenv("EMAIL_PASSWORD")
     server_host = os.getenv("SMTP_SERVER", "smtp.gmail.com")
     server_port = int(os.getenv("SMTP_PORT", 587))
 
     if not sender or not password:
-        print(f"[ERROR] SENDER_EMAIL or SENDER_PASSWORD not set in .env")
+        print(f"[ERROR] SENDER_EMAIL/SENDER_PASSWORD or EMAIL_USER/EMAIL_PASSWORD not set")
         return False
 
     try:
