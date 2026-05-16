@@ -109,7 +109,12 @@ def send_otp(req: SendOtpRequest, db: Session = Depends(get_db)):
     expires_at = datetime.now() + timedelta(minutes=5)
     OTP_CODES[req.email] = {"code": otp, "expires_at": expires_at}
     
-    send_otp_email(req.email, otp)
+    if not send_otp_email(req.email, otp):
+        OTP_CODES.pop(req.email, None)
+        raise HTTPException(
+            status_code=503,
+            detail="Khong the gui ma OTP luc nay. Vui long thu lai sau.",
+        )
     
     return {"message": "Đã gửi mã xác thực đến email của bạn."}
 

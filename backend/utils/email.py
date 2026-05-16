@@ -37,7 +37,7 @@ def send_email(to_email: str, subject: str, body: str, is_html: bool = True):
         
         print(f"[DEBUG] Attempting to send email from {sender} via {server_host}...")
         
-        server = smtplib.SMTP(server_host, server_port)
+        server = smtplib.SMTP(server_host, server_port, timeout=10)
         server.starttls()
         server.login(sender, password)
         server.send_message(msg)
