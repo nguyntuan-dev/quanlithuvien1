@@ -5,6 +5,8 @@ from routers import tai_lieu, doc_gia, muon_tra, vi_pham, nhan_vien, thong_ke, a
 from database import engine, Base
 from services.automation import start_scheduler
 from dotenv import load_dotenv
+import hashlib
+import os
 
 load_dotenv()
 app = FastAPI(
@@ -25,10 +27,22 @@ app.add_middleware(
 def startup_event():
     try:
         Base.metadata.create_all(bind=engine)
+        default_password_hash = hashlib.sha256(
+            os.getenv("DEFAULT_STAFF_PASSWORD", "18112006").encode()
+        ).hexdigest()
         with engine.begin() as conn:
             conn.execute(text("ALTER TABLE tai_lieu ADD COLUMN IF NOT EXISTS gia NUMERIC(12, 0) DEFAULT 0"))
             conn.execute(text("ALTER TABLE tai_lieu ADD COLUMN IF NOT EXISTS anh_bia TEXT"))
             conn.execute(text("ALTER TABLE doc_gia ADD COLUMN IF NOT EXISTS mat_khau_hash VARCHAR(255)"))
+            conn.execute(
+                text("""
+                    INSERT INTO nhan_vien (ma_nhan_vien, ho_ten, chuc_vu, email, mat_khau_hash, la_admin) VALUES
+                      ('NV000001', 'Quan tri vien',  'Admin',  'admin@thuvien.vn', :password_hash, true),
+                      ('NV000002', 'Nguyen Thi Lan', 'Thu thu', 'lan@thuvien.vn',   :password_hash, false)
+                    ON CONFLICT DO NOTHING
+                """),
+                {"password_hash": default_password_hash},
+            )
             conn.execute(text("""
                 INSERT INTO the_loai (ma_the_loai, ten_the_loai) VALUES
                   ('TRIETON', 'Triết học / Tôn giáo'),
