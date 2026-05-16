@@ -7,7 +7,11 @@ from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 
 from dotenv import load_dotenv
+import os
 
+print("ALL ENV:")
+print(os.environ.keys())
+print("RESEND:", os.getenv("RESEND_API_KEY"))
 load_dotenv()
 
 SMTP_SERVER = os.getenv("SMTP_SERVER", "smtp.gmail.com")
@@ -88,49 +92,6 @@ def send_email_with_resend(
     except Exception as exc:
         print(exc)
         return False
-
-    if not resend_configured:
-        return None
-    if not api_key:
-        print("[ERROR] RESEND_API_KEY not set")
-        return False
-    if not sender:
-        print("[ERROR] RESEND_FROM_EMAIL, EMAIL_FROM, SENDER_EMAIL, or EMAIL_USER not set")
-        return False
-
-    payload = {
-        "from": sender_header(sender),
-        "to": [to_email],
-        "subject": subject,
-        "html" if is_html else "text": body,
-    }
-    request = urllib.request.Request(
-        RESEND_API_URL,
-        data=json.dumps(payload).encode("utf-8"),
-        method="POST",
-        headers={
-            "Authorization": f"Bearer {api_key}",
-            "Content-Type": "application/json",
-            "User-Agent": "quanlithuvien/1.0",
-        },
-    )
-
-    try:
-        print(f"[DEBUG] Attempting to send email from {sender} via Resend...")
-        with urllib.request.urlopen(request, timeout=15) as response:
-            if 200 <= response.status < 300:
-                print(f"[OK] Resend email sent to {to_email}")
-                return True
-            print(f"[ERROR] Resend returned HTTP {response.status}")
-            return False
-    except urllib.error.HTTPError as exc:
-        response_body = exc.read().decode("utf-8", errors="replace")
-        print(f"[ERROR] Resend HTTP {exc.code}: {response_body}")
-        return False
-    except Exception as exc:
-        print(f"[ERROR] Error sending email with Resend from {sender}: {exc}")
-        return False
-
 
 def send_email_with_smtp(to_email: str, subject: str, body: str, is_html: bool = True):
     sender = os.getenv("SENDER_EMAIL") or os.getenv("EMAIL_USER")
