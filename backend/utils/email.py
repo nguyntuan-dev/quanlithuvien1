@@ -19,6 +19,7 @@ RESEND_API_URL = "https://api.resend.com/emails"
 def get_sender_email() -> str | None:
     return (
         os.getenv("RESEND_FROM_EMAIL")
+        or os.getenv("EMAIL_FROM")
         or os.getenv("SENDER_EMAIL")
         or os.getenv("EMAIL_USER")
     )
@@ -31,11 +32,19 @@ def sender_header(sender: str) -> str:
 def send_email_with_resend(to_email: str, subject: str, body: str, is_html: bool = True):
     api_key = os.getenv("RESEND_API_KEY")
     sender = get_sender_email()
+    resend_configured = bool(
+        api_key
+        or os.getenv("RESEND_FROM_EMAIL")
+        or os.getenv("EMAIL_FROM")
+    )
 
-    if not api_key:
+    if not resend_configured:
         return None
+    if not api_key:
+        print("[ERROR] RESEND_API_KEY not set")
+        return False
     if not sender:
-        print("[ERROR] RESEND_FROM_EMAIL, SENDER_EMAIL, or EMAIL_USER not set")
+        print("[ERROR] RESEND_FROM_EMAIL, EMAIL_FROM, SENDER_EMAIL, or EMAIL_USER not set")
         return False
 
     payload = {
