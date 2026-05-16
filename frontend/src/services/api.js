@@ -4,7 +4,7 @@ import toast from 'react-hot-toast'
 // ── Axios instance ───────────────────────────────────────────────
 const defaultApiUrl = import.meta.env.DEV
   ? '/api'
-  : 'https://quanlithuvien-production.up.railway.app/api'
+  : 'https://quanlithuvien1-production.up.railway.app/api'
 
 const api = axios.create({
   baseURL: import.meta.env.VITE_API_URL || defaultApiUrl,
