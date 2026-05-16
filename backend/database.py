@@ -5,7 +5,7 @@ import os
 
 DATABASE_URL = os.getenv(
     "DATABASE_URL",
-    "postgresql://postgres:fSIQEHewZamEsAojxtRSjAbWmcYmWDGM@trolley.proxy.rlwy.net:52856/railway"
+    "postgresql://postgres:18112006@localhost:5432/thu_vien_db"
 )
 if DATABASE_URL.startswith("postgres://"):
     DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql+psycopg://", 1)
