@@ -1,61 +1,128 @@
-import smtplib
+import json
 import os
-from email.mime.text import MIMEText
+import smtplib
+import urllib.error
+import urllib.request
 from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
+
 from dotenv import load_dotenv
 
 load_dotenv()
 
 SMTP_SERVER = os.getenv("SMTP_SERVER", "smtp.gmail.com")
 SMTP_PORT = int(os.getenv("SMTP_PORT", 587))
-SENDER_EMAIL = os.getenv("SENDER_EMAIL") or os.getenv("EMAIL_USER", "your-email@gmail.com")
-SENDER_PASSWORD = os.getenv("SENDER_PASSWORD") or os.getenv("EMAIL_PASSWORD", "your-password")
-LIBRARY_NAME = "Thư Viện Pro"
+LIBRARY_NAME = "Thu Vien Pro"
+RESEND_API_URL = "https://api.resend.com/emails"
 
-def send_email(to_email: str, subject: str, body: str, is_html: bool = True):
-    """Hàm gửi email dùng chung cho toàn hệ thống"""
-    # Đảm bảo load lại .env
-    load_dotenv()
-    
+
+def get_sender_email() -> str | None:
+    return (
+        os.getenv("RESEND_FROM_EMAIL")
+        or os.getenv("SENDER_EMAIL")
+        or os.getenv("EMAIL_USER")
+    )
+
+
+def sender_header(sender: str) -> str:
+    return f"{LIBRARY_NAME} <{sender}>"
+
+
+def send_email_with_resend(to_email: str, subject: str, body: str, is_html: bool = True):
+    api_key = os.getenv("RESEND_API_KEY")
+    sender = get_sender_email()
+
+    if not api_key:
+        return None
+    if not sender:
+        print("[ERROR] RESEND_FROM_EMAIL, SENDER_EMAIL, or EMAIL_USER not set")
+        return False
+
+    payload = {
+        "from": sender_header(sender),
+        "to": [to_email],
+        "subject": subject,
+        "html" if is_html else "text": body,
+    }
+    request = urllib.request.Request(
+        RESEND_API_URL,
+        data=json.dumps(payload).encode("utf-8"),
+        method="POST",
+        headers={
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json",
+        },
+    )
+
+    try:
+        print(f"[DEBUG] Attempting to send email from {sender} via Resend...")
+        with urllib.request.urlopen(request, timeout=15) as response:
+            if 200 <= response.status < 300:
+                print(f"[OK] Resend email sent to {to_email}")
+                return True
+            print(f"[ERROR] Resend returned HTTP {response.status}")
+            return False
+    except urllib.error.HTTPError as exc:
+        response_body = exc.read().decode("utf-8", errors="replace")
+        print(f"[ERROR] Resend HTTP {exc.code}: {response_body}")
+        return False
+    except Exception as exc:
+        print(f"[ERROR] Error sending email with Resend from {sender}: {exc}")
+        return False
+
+
+def send_email_with_smtp(to_email: str, subject: str, body: str, is_html: bool = True):
     sender = os.getenv("SENDER_EMAIL") or os.getenv("EMAIL_USER")
     password = os.getenv("SENDER_PASSWORD") or os.getenv("EMAIL_PASSWORD")
-    server_host = os.getenv("SMTP_SERVER", "smtp.gmail.com")
-    server_port = int(os.getenv("SMTP_PORT", 587))
+    server_host = os.getenv("SMTP_SERVER", SMTP_SERVER)
+    server_port = int(os.getenv("SMTP_PORT", SMTP_PORT))
 
     if not sender or not password:
-        print(f"[ERROR] SENDER_EMAIL/SENDER_PASSWORD or EMAIL_USER/EMAIL_PASSWORD not set")
+        print("[ERROR] SMTP sender/password env vars not set")
         return False
 
     try:
         msg = MIMEMultipart()
-        msg['From'] = f"{LIBRARY_NAME} <{sender}>"
-        msg['To'] = to_email
-        msg['Subject'] = subject
-        
-        content_type = 'html' if is_html else 'plain'
-        msg.attach(MIMEText(body, content_type, 'utf-8'))
-        
+        msg["From"] = sender_header(sender)
+        msg["To"] = to_email
+        msg["Subject"] = subject
+
+        content_type = "html" if is_html else "plain"
+        msg.attach(MIMEText(body, content_type, "utf-8"))
+
         print(f"[DEBUG] Attempting to send email from {sender} via {server_host}...")
-        
+
         server = smtplib.SMTP(server_host, server_port, timeout=10)
         server.starttls()
         server.login(sender, password)
         server.send_message(msg)
         server.quit()
-        print(f"[OK] Email sent to {to_email}")
+        print(f"[OK] SMTP email sent to {to_email}")
         return True
-    except Exception as e:
-        print(f"[ERROR] Error sending email from {sender}: {e}")
+    except Exception as exc:
+        print(f"[ERROR] Error sending email from {sender}: {exc}")
         return False
 
+
+def send_email(to_email: str, subject: str, body: str, is_html: bool = True):
+    load_dotenv()
+
+    resend_result = send_email_with_resend(to_email, subject, body, is_html)
+    if resend_result is not None:
+        return resend_result
+
+    return send_email_with_smtp(to_email, subject, body, is_html)
+
+
 def send_otp_email(to_email: str, otp_code: str):
-    """Gửi OTP xác thực"""
-    subject = f"Mã xác thực đăng ký - {LIBRARY_NAME}"
+    subject = f"Ma xac thuc dang ky - {LIBRARY_NAME}"
     body = f"""
-    <h3>Xác nhận đăng ký tài khoản</h3>
-    <p>Chào bạn,</p>
-    <p>Mã xác thực (OTP) của bạn là: <strong style='font-size: 1.2rem; color: #d4a017;'>{otp_code}</strong></p>
-    <p>Mã này có hiệu lực trong vòng 5 phút.</p>
-    <p>Trân trọng,<br/><strong>{LIBRARY_NAME}</strong></p>
+    <h3>Xac nhan dang ky tai khoan</h3>
+    <p>Chao ban,</p>
+    <p>Ma xac thuc (OTP) cua ban la:
+      <strong style='font-size: 1.2rem; color: #d4a017;'>{otp_code}</strong>
+    </p>
+    <p>Ma nay co hieu luc trong vong 5 phut.</p>
+    <p>Tran trong,<br/><strong>{LIBRARY_NAME}</strong></p>
     """
     return send_email(to_email, subject, body, is_html=True)
