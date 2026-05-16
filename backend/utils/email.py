@@ -29,21 +29,65 @@ def sender_header(sender: str) -> str:
     return f"{LIBRARY_NAME} <{sender}>"
 
 
-def send_email_with_resend(to_email: str, subject: str, body: str, is_html: bool = True):
-    api_key = os.getenv("RESEND_API_KEY")
-    sender = get_sender_email()
-    resend_configured = bool(
-        api_key
-        or os.getenv("RESEND_FROM_EMAIL")
-        or os.getenv("EMAIL_FROM")
-    )
-def send_email_with_resend(to_email: str, subject: str, body: str, is_html: bool = True):
+def send_email_with_resend(
+    to_email: str,
+    subject: str,
+    body: str,
+    is_html: bool = True
+):
     api_key = os.getenv("RESEND_API_KEY")
 
     print("DEBUG RESEND_API_KEY:", bool(api_key))
     print("DEBUG EMAIL_FROM:", os.getenv("EMAIL_FROM"))
 
     sender = get_sender_email()
+
+    resend_configured = bool(
+        api_key
+        or os.getenv("RESEND_FROM_EMAIL")
+        or os.getenv("EMAIL_FROM")
+    )
+
+    if not resend_configured:
+        return None
+
+    if not api_key:
+        print("[ERROR] RESEND_API_KEY not set")
+        return False
+
+    if not sender:
+        print("[ERROR] Sender email not set")
+        return False
+
+    payload = {
+        "from": sender_header(sender),
+        "to": [to_email],
+        "subject": subject,
+        "html" if is_html else "text": body,
+    }
+
+    request = urllib.request.Request(
+        RESEND_API_URL,
+        data=json.dumps(payload).encode("utf-8"),
+        method="POST",
+        headers={
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json",
+        },
+    )
+
+    try:
+        with urllib.request.urlopen(request, timeout=15) as response:
+            print("[OK] Resend email sent")
+            return True
+
+    except urllib.error.HTTPError as exc:
+        print(exc.read().decode())
+        return False
+
+    except Exception as exc:
+        print(exc)
+        return False
 
     if not resend_configured:
         return None
