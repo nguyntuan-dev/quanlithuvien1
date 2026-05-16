@@ -51,6 +51,7 @@ def send_email_with_resend(to_email: str, subject: str, body: str, is_html: bool
         headers={
             "Authorization": f"Bearer {api_key}",
             "Content-Type": "application/json",
+            "User-Agent": "quanlithuvien/1.0",
         },
     )
 
