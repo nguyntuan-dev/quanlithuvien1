@@ -9,7 +9,7 @@ export default defineConfig(({ command }) => ({
   preview: {
     host: '0.0.0.0',
     port: Number(process.env.PORT) || 4173,
-    allowedHosts: ['.up.railway.app'],
+    allowedHosts: ['.up.railway.app', 'quanlithuvien.live'],
   },
   server: {
     port: 5173,
