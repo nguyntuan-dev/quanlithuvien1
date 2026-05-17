@@ -1,6 +1,7 @@
 from typing import Any, Dict, List
 
 from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session
 
 from database import get_db
@@ -38,9 +39,15 @@ DEFAULT_SETTINGS = {
 
 
 def ensure_defaults(db: Session):
-    for key, (value, desc) in DEFAULT_SETTINGS.items():
-        if not db.query(CauHinhHeThong).filter(CauHinhHeThong.khoa == key).first():
-            db.add(CauHinhHeThong(khoa=key, gia_tri=value, mo_ta=desc))
+    rows = [
+        {"khoa": key, "gia_tri": value, "mo_ta": desc}
+        for key, (value, desc) in DEFAULT_SETTINGS.items()
+    ]
+    if rows:
+        stmt = insert(CauHinhHeThong).values(rows).on_conflict_do_nothing(
+            index_elements=[CauHinhHeThong.khoa]
+        )
+        db.execute(stmt)
     db.commit()
 
 
