@@ -1,12 +1,14 @@
 import { useEffect, useState } from 'react'
 import { viPhamApi } from '../services/api'
 import { PageHeader, Modal, Field, Input, Badge, Spinner, Empty } from '../components/UI'
-import { Plus, CheckCircle } from 'lucide-react'
+import { Plus, CheckCircle, QrCode, Copy } from 'lucide-react'
 import toast from 'react-hot-toast'
 
 const TT_LABEL = {
   chua_thanh_toan: { label: 'Chưa thanh toán', variant: 'red' },
   da_thanh_toan:   { label: 'Đã thanh toán',   variant: 'green' },
+  CHUA_THANH_TOAN: { label: 'Chưa thanh toán', variant: 'red' },
+  DA_THANH_TOAN:   { label: 'Đã thanh toán',   variant: 'green' },
 }
 
 export default function ViPhamPage() {
@@ -15,6 +17,9 @@ export default function ViPhamPage() {
   const [modal, setModal]     = useState(false)
   const [form, setForm]       = useState({ ma_phieu_muon: '', ly_do_phat: '', so_tien: '' })
   const [saving, setSaving]   = useState(false)
+  const [qrModal, setQrModal] = useState(false)
+  const [qrInfo, setQrInfo]   = useState(null)
+  const [qrLoading, setQrLoading] = useState(false)
 
   const load = async () => {
     setLoading(true)
@@ -39,10 +44,28 @@ export default function ViPhamPage() {
     } finally { setSaving(false) }
   }
 
+  const handleOpenQR = async (ma) => {
+    setQrModal(true)
+    setQrInfo(null)
+    setQrLoading(true)
+    try {
+      const { data } = await viPhamApi.vietqr(ma)
+      setQrInfo(data)
+    } finally { setQrLoading(false) }
+  }
+
   const handleThanhToan = async (ma) => {
     await viPhamApi.thanhToan(ma)
     toast.success('Đã thanh toán xong')
+    setQrModal(false)
+    setQrInfo(null)
     load()
+  }
+
+  const copyPaymentContent = async () => {
+    if (!qrInfo?.noi_dung) return
+    await navigator.clipboard.writeText(qrInfo.noi_dung)
+    toast.success('Đã sao chép nội dung chuyển khoản')
   }
 
   const f = k => e => setForm(p => ({ ...p, [k]: e.target.value }))
@@ -94,12 +117,12 @@ export default function ViPhamPage() {
                           </td>
                           <td className="td"><Badge variant={tt.variant}>{tt.label}</Badge></td>
                           <td className="td">
-                            {vp.trang_thai_thanh_toan === 'chua_thanh_toan' && (
+                            {['chua_thanh_toan', 'CHUA_THANH_TOAN'].includes(vp.trang_thai_thanh_toan) && (
                               <button
                                 className="btn btn-secondary py-1 px-3 text-xs"
-                                onClick={() => handleThanhToan(vp.ma_phat)}
+                                onClick={() => handleOpenQR(vp.ma_phat)}
                               >
-                                <CheckCircle size={12} /> Thanh toán
+                                <QrCode size={12} /> VietQR
                               </button>
                             )}
                           </td>
@@ -111,6 +134,52 @@ export default function ViPhamPage() {
           </table>
         </div>
       </div>
+
+      <Modal
+        open={qrModal}
+        onClose={() => setQrModal(false)}
+        title="Thanh toán tiền phạt bằng VietQR"
+        size="md"
+        footer={
+          qrInfo && (
+            <div className="flex gap-2 justify-end">
+              <button className="btn btn-secondary" onClick={() => setQrModal(false)}>Hủy</button>
+              <button className="btn btn-primary" onClick={() => handleThanhToan(qrInfo.ma_phat)}>
+                <CheckCircle size={15} /> Xác nhận đã nhận tiền
+              </button>
+            </div>
+          )
+        }
+      >
+        {qrLoading ? <Spinner /> : qrInfo && (
+          <div className="grid gap-5 md:grid-cols-[220px_1fr] items-start">
+            <div className="rounded-xl border border-border bg-white p-3">
+              <img src={qrInfo.qr_url} alt="VietQR thanh toán tiền phạt" className="w-full aspect-square object-contain" />
+            </div>
+            <div className="space-y-3 text-sm">
+              <div>
+                <div className="text-ink-muted">Số tiền</div>
+                <div className="text-2xl font-semibold text-danger">
+                  {Number(qrInfo.so_tien).toLocaleString('vi-VN')}đ
+                </div>
+              </div>
+              <div className="grid grid-cols-[120px_1fr] gap-y-2">
+                <span className="text-ink-muted">Ngân hàng</span>
+                <span className="font-medium">{qrInfo.ngan_hang}</span>
+                <span className="text-ink-muted">Số tài khoản</span>
+                <span className="font-mono">{qrInfo.so_tai_khoan}</span>
+                <span className="text-ink-muted">Chủ tài khoản</span>
+                <span className="font-medium">{qrInfo.ten_tai_khoan}</span>
+                <span className="text-ink-muted">Nội dung</span>
+                <span className="font-mono">{qrInfo.noi_dung}</span>
+              </div>
+              <button className="btn btn-secondary" onClick={copyPaymentContent}>
+                <Copy size={15} /> Sao chép nội dung
+              </button>
+            </div>
+          </div>
+        )}
+      </Modal>
 
       <Modal 
         open={modal} 

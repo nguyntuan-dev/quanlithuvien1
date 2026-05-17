@@ -82,6 +82,7 @@ export const datTruocApi = {
 export const viPhamApi = {
   list: (p) => api.get('/vi-pham/vi-pham/', { params: p }),
   create: (d) => api.post('/vi-pham/vi-pham/', d),
+  vietqr: (ma) => api.get(`/vi-pham/vi-pham/${ma}/vietqr`),
   thanhToan: (ma) => api.put(`/vi-pham/vi-pham/${ma}/thanh-toan`),
 }
 

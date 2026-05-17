@@ -16,6 +16,10 @@ DEFAULT_SETTINGS = {
     "so_ngay_gia_han": ("7", "Số ngày cộng thêm khi gia hạn"),
     "tien_phat_qua_han_moi_ngay": ("10000", "Tiền phạt quá hạn mỗi ngày"),
     "chinh_sach_mat_hong": ("Theo giá sách", "Cách tính phạt sách mất/hỏng"),
+    "vietqr_ngan_hang": ("MB", "Mã ngân hàng VietQR, ví dụ: VCB, MB, ACB hoặc BIDV"),
+    "vietqr_so_tai_khoan": ("0355692135", "Số tài khoản nhận tiền phạt"),
+    "vietqr_ten_tai_khoan": ("THU VIEN", "Tên chủ tài khoản nhận tiền phạt"),
+    "vietqr_mau_qr": ("compact2", "Mẫu ảnh VietQR: compact, compact2, qr_only hoặc print"),
 }
 
 def ensure_defaults(db: Session):

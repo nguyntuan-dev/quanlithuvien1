@@ -3,11 +3,13 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session, joinedload
 from typing import List, Optional
 from database import get_db
-from models import ViPhamPhat, PhieuMuon, DocGia, ChiTietPhieuMuon, TrangThaiPhat
-from schemas import ViPhamCreate, ViPhamOut
+from models import ViPhamPhat, PhieuMuon, DocGia, ChiTietPhieuMuon, TrangThaiPhat, CauHinhHeThong
+from schemas import ViPhamCreate, ViPhamOut, VietQRThanhToanOut
 import uuid
 from datetime import datetime
 import unicodedata
+import os
+from urllib.parse import urlencode
 from services.automation import LOST_BOOK_COEFFICIENT, BROKEN_BOOK_COEFFICIENT
 
 router = APIRouter(prefix="/vi-pham", tags=["ViPham"])
@@ -32,6 +34,19 @@ def fine_by_borrowed_book_price(pm: PhieuMuon, coefficient: float = 1.0) -> int:
             # Tính tiền theo giá sách * hệ số * số lượng
             total += int(float(ct.tai_lieu.gia or 0) * coefficient) * int(ct.so_luong or 1)
     return total
+
+def get_setting(db: Session, key: str, env_key: str, default: str = "") -> str:
+    row = db.query(CauHinhHeThong).filter(CauHinhHeThong.khoa == key).first()
+    value = row.gia_tri if row and str(row.gia_tri).strip() else os.getenv(env_key, default)
+    return str(value or "").strip()
+
+def build_vietqr_url(bank: str, account_no: str, template: str, amount: int, info: str, account_name: str) -> str:
+    params = urlencode({
+        "amount": amount,
+        "addInfo": info,
+        "accountName": account_name,
+    })
+    return f"https://img.vietqr.io/image/{bank}-{account_no}-{template}.png?{params}"
 
 # -------------------
 # GET danh sách vi phạm
@@ -105,6 +120,39 @@ def tao_vi_pham(req: ViPhamCreate, db: Session = Depends(get_db)):
             ct.ma_tai_lieu = ""
 
     return vp
+
+@router.get("/{ma}/vietqr", response_model=VietQRThanhToanOut)
+def lay_vietqr(ma: str, db: Session = Depends(get_db)):
+    vp = db.query(ViPhamPhat).filter(ViPhamPhat.ma_phat == ma).first()
+    if not vp:
+        raise HTTPException(status_code=404, detail="Không tìm thấy vi phạm")
+    if vp.trang_thai_thanh_toan == TrangThaiPhat.DA_THANH_TOAN:
+        raise HTTPException(status_code=400, detail="Vi phạm này đã thanh toán")
+
+    bank = get_setting(db, "vietqr_ngan_hang", "VIETQR_BANK")
+    account_no = get_setting(db, "vietqr_so_tai_khoan", "VIETQR_ACCOUNT_NO")
+    account_name = get_setting(db, "vietqr_ten_tai_khoan", "VIETQR_ACCOUNT_NAME", "THU VIEN")
+    template = get_setting(db, "vietqr_mau_qr", "VIETQR_TEMPLATE", "compact2")
+    if not bank or not account_no:
+        raise HTTPException(
+            status_code=400,
+            detail="Chưa cấu hình ngân hàng hoặc số tài khoản VietQR trong Hệ thống",
+        )
+
+    amount = int(float(vp.so_tien or 0))
+    if amount <= 0:
+        raise HTTPException(status_code=400, detail="Số tiền phạt không hợp lệ")
+
+    info = f"THANH TOAN PHAT {vp.ma_phat}"
+    return VietQRThanhToanOut(
+        ma_phat=vp.ma_phat,
+        so_tien=amount,
+        noi_dung=info,
+        qr_url=build_vietqr_url(bank, account_no, template, amount, info, account_name),
+        ngan_hang=bank,
+        so_tai_khoan=account_no,
+        ten_tai_khoan=account_name,
+    )
 
 # -------------------
 # PUT thanh toán vi phạm

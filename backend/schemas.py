@@ -205,6 +205,15 @@ class ViPhamOut(BaseModel):
     phieu_muon: Optional[PhieuMuonOut]
     class Config: from_attributes = True
 
+class VietQRThanhToanOut(BaseModel):
+    ma_phat: str
+    so_tien: float
+    noi_dung: str
+    qr_url: str
+    ngan_hang: str
+    so_tai_khoan: str
+    ten_tai_khoan: str
+
 # ── Nhân viên ─────────────────────────────────────────────────────────────────
 class NhanVienCreate(BaseModel):
     ho_ten: str
