@@ -175,7 +175,7 @@ export default function LichSuPage() {
   const copyPaymentContent = async () => {
     if (!qrInfo?.noi_dung) return
     await navigator.clipboard.writeText(qrInfo.noi_dung)
-    toast.success('Da sao chep noi dung chuyen khoan')
+    toast.success('Đã sao chép nội dung chuyển khoản')
   }
 
   const getReservationBadge = (status) => {
@@ -380,33 +380,33 @@ export default function LichSuPage() {
       <Modal
         open={qrModal}
         onClose={() => setQrModal(false)}
-        title="Thanh toan tien phat bang VietQR"
+        title="Thanh toán tiền phạt bằng VietQR"
         size="md"
       >
         {qrLoading ? <Spinner /> : qrInfo && (
           <div className="grid gap-5 md:grid-cols-[220px_1fr] items-start">
             <div className="rounded-xl border border-border bg-white p-3">
-              <img src={qrInfo.qr_url} alt="VietQR thanh toan tien phat" className="w-full aspect-square object-contain" />
+              <img src={qrInfo.qr_url} alt="VietQR thanh toán tiền phạt" className="w-full aspect-square object-contain" />
             </div>
             <div className="space-y-3 text-sm">
               <div>
-                <div className="text-ink-muted">So tien</div>
+                <div className="text-ink-muted">Số tiền</div>
                 <div className="text-2xl font-semibold text-danger">
-                  {Number(qrInfo.so_tien).toLocaleString('vi-VN')}d
+                  {Number(qrInfo.so_tien).toLocaleString('vi-VN')}đ
                 </div>
               </div>
               <div className="grid grid-cols-[120px_1fr] gap-y-2">
-                <span className="text-ink-muted">Ngan hang</span>
+                <span className="text-ink-muted">Ngân hàng</span>
                 <span className="font-medium">{qrInfo.ngan_hang}</span>
-                <span className="text-ink-muted">So tai khoan</span>
+                <span className="text-ink-muted">Số tài khoản</span>
                 <span className="font-mono">{qrInfo.so_tai_khoan}</span>
-                <span className="text-ink-muted">Chu tai khoan</span>
+                <span className="text-ink-muted">Chủ tài khoản</span>
                 <span className="font-medium">{qrInfo.ten_tai_khoan}</span>
-                <span className="text-ink-muted">Noi dung</span>
+                <span className="text-ink-muted">Nội dung</span>
                 <span className="font-mono">{qrInfo.noi_dung}</span>
               </div>
               <button className="btn btn-secondary" onClick={copyPaymentContent}>
-                <Copy size={15} /> Sao chep noi dung
+                <Copy size={15} /> Sao chép nội dung
               </button>
             </div>
           </div>

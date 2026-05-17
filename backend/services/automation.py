@@ -59,6 +59,26 @@ def write_system_audit(
     ))
 
 
+def reader_has_unpaid_fines(db: Session, ma_doc_gia: str) -> bool:
+    return db.query(ViPhamPhat).join(PhieuMuon).filter(
+        PhieuMuon.ma_doc_gia == ma_doc_gia,
+        ViPhamPhat.trang_thai_thanh_toan == TrangThaiPhat.CHUA_THANH_TOAN,
+    ).first() is not None
+
+
+def unlock_reader_card_if_paid(db: Session, reader) -> bool:
+    if not reader or reader.trang_thai_the != TrangThaiThe.BI_KHOA:
+        return False
+    if reader_has_unpaid_fines(db, reader.ma_doc_gia):
+        return False
+
+    reader.trang_thai_the = TrangThaiThe.CON_HIEU_LUC
+    if reader.the_thu_vien and reader.the_thu_vien.trang_thai == TrangThaiThe.BI_KHOA:
+        reader.the_thu_vien.trang_thai = TrangThaiThe.CON_HIEU_LUC
+    write_system_audit(db, "tu_dong_mo_khoa_the", "doc_gia", reader.ma_doc_gia)
+    return True
+
+
 def send_safe_email(to_email: str | None, subject: str, body: str) -> bool:
     if not to_email:
         return False
@@ -185,9 +205,11 @@ def job_update_overdue():
             write_system_audit(db, "tu_dong_cap_nhat_qua_han", "phieu_muon", item.ma_phieu_muon)
         db.commit()
         print(f"[OK] Updated {len(items)} overdue loans")
+        return {"job": "Cập nhật phiếu quá hạn", "status": "ok", "affected": len(items)}
     except Exception as exc:
         print(f"[ERROR] update_overdue: {exc}")
         db.rollback()
+        return {"job": "Cập nhật phiếu quá hạn", "status": "error", "error": str(exc)}
     finally:
         db.close()
 
@@ -200,6 +222,9 @@ def job_calculate_daily_fine():
             PhieuMuon.trang_thai == TrangThaiPhieu.QUA_HAN,
         ).all()
         per_day = get_int_config(db, "tien_phat_qua_han_moi_ngay", FINE_PER_DAY_OVERDUE)
+        created = 0
+        updated = 0
+        notified = 0
         for item in items:
             days = max((today - item.han_tra).days, 0)
             amount = Decimal(days * per_day)
@@ -215,6 +240,7 @@ def job_calculate_daily_fine():
             if fine:
                 fine.so_tien = amount
                 fine.ly_do_phat = reason
+                updated += 1
             else:
                 db.add(ViPhamPhat(
                     ma_phat=_fine_code(item, today),
@@ -223,10 +249,11 @@ def job_calculate_daily_fine():
                     ma_phieu_muon=item.ma_phieu_muon,
                 ))
                 write_system_audit(db, "tu_dong_tao_phat_qua_han", "phieu_muon", item.ma_phieu_muon, str(amount))
+                created += 1
 
             should_notify = days in (1, 3, 7, 14) or (days > 0 and days % 7 == 0)
             if should_notify and item.doc_gia and item.doc_gia.email:
-                send_safe_email(
+                if send_safe_email(
                     item.doc_gia.email,
                     "Thong bao phat qua han sach",
                     f"""
@@ -237,12 +264,22 @@ def job_calculate_daily_fine():
                     <p>Vui long tra sach va thanh toan som.</p>
                     <p>Tran trong,<br/><strong>{LIBRARY_NAME}</strong></p>
                     """,
-                )
+                ):
+                    notified += 1
         db.commit()
         print("[OK] Calculated overdue fines")
+        return {
+            "job": "Tính tiền phạt quá hạn",
+            "status": "ok",
+            "checked": len(items),
+            "created": created,
+            "updated": updated,
+            "notified": notified,
+        }
     except Exception as exc:
         print(f"[ERROR] calculate_daily_fine: {exc}")
         db.rollback()
+        return {"job": "Tính tiền phạt quá hạn", "status": "error", "error": str(exc)}
     finally:
         db.close()
 
@@ -255,9 +292,11 @@ def job_send_overdue_notifications():
             PhieuMuon.trang_thai == TrangThaiPhieu.DANG_MUON,
             PhieuMuon.han_tra == remind_date,
         ).all()
+        sent = 0
+        skipped = 0
         for item in items:
             if item.doc_gia and item.doc_gia.email:
-                send_safe_email(
+                if send_safe_email(
                     item.doc_gia.email,
                     "Thong bao han tra sach",
                     f"""
@@ -267,10 +306,24 @@ def job_send_overdue_notifications():
                     <p>Vui long tra sach dung han de tranh bi phat.</p>
                     <p>Tran trong,<br/><strong>{LIBRARY_NAME}</strong></p>
                     """,
-                )
-        print(f"[OK] Sent {len(items)} due-date reminders")
+                ):
+                    sent += 1
+                else:
+                    skipped += 1
+            else:
+                skipped += 1
+        print(f"[OK] Sent {sent}/{len(items)} due-date reminders")
+        return {
+            "job": "Gửi nhắc hạn trả",
+            "status": "ok",
+            "checked": len(items),
+            "sent": sent,
+            "skipped": skipped,
+            "target_due_date": remind_date.isoformat(),
+        }
     except Exception as exc:
         print(f"[ERROR] send_overdue_notifications: {exc}")
+        return {"job": "Gửi nhắc hạn trả", "status": "error", "error": str(exc)}
     finally:
         db.close()
 
@@ -291,6 +344,8 @@ def job_lock_card_on_violation():
         for reader in items:
             if reader.trang_thai_the != TrangThaiThe.BI_KHOA:
                 reader.trang_thai_the = TrangThaiThe.BI_KHOA
+                if reader.the_thu_vien:
+                    reader.the_thu_vien.trang_thai = TrangThaiThe.BI_KHOA
                 write_system_audit(db, "tu_dong_khoa_the", "doc_gia", reader.ma_doc_gia)
                 send_safe_email(
                     reader.email,
@@ -299,9 +354,30 @@ def job_lock_card_on_violation():
                 )
         db.commit()
         print(f"[OK] Locked {len(items)} reader cards if needed")
+        return {"job": "Khóa thẻ vi phạm", "status": "ok", "checked": len(items)}
     except Exception as exc:
         print(f"[ERROR] lock_card: {exc}")
         db.rollback()
+        return {"job": "Khóa thẻ vi phạm", "status": "error", "error": str(exc)}
+    finally:
+        db.close()
+
+
+def job_unlock_paid_reader_cards():
+    db = SessionLocal()
+    try:
+        readers = db.query(DocGia).filter(DocGia.trang_thai_the == TrangThaiThe.BI_KHOA).all()
+        unlocked = 0
+        for reader in readers:
+            if unlock_reader_card_if_paid(db, reader):
+                unlocked += 1
+        db.commit()
+        print(f"[OK] Unlocked {unlocked} paid reader cards")
+        return {"job": "Mở khóa thẻ đã thanh toán", "status": "ok", "checked": len(readers), "unlocked": unlocked}
+    except Exception as exc:
+        print(f"[ERROR] unlock_paid_cards: {exc}")
+        db.rollback()
+        return {"job": "Mở khóa thẻ đã thanh toán", "status": "error", "error": str(exc)}
     finally:
         db.close()
 
@@ -324,9 +400,11 @@ def job_cancel_old_reservations():
             process_reservation_queue(db, ma_tai_lieu)
         db.commit()
         print(f"[OK] Cancelled {len(items)} stale reservations")
+        return {"job": "Hủy đặt trước quá hạn", "status": "ok", "affected": len(items)}
     except Exception as exc:
         print(f"[ERROR] cancel_reservations: {exc}")
         db.rollback()
+        return {"job": "Hủy đặt trước quá hạn", "status": "error", "error": str(exc)}
     finally:
         db.close()
 
@@ -340,9 +418,11 @@ def job_process_reservation_queues():
             total += process_reservation_queue(db, ma_tai_lieu)
         db.commit()
         print(f"[OK] Approved {total} reservations")
+        return {"job": "Duyệt hàng đợi đặt trước", "status": "ok", "affected": total}
     except Exception as exc:
         print(f"[ERROR] process_reservation_queues: {exc}")
         db.rollback()
+        return {"job": "Duyệt hàng đợi đặt trước", "status": "error", "error": str(exc)}
     finally:
         db.close()
 
@@ -357,7 +437,7 @@ def job_send_daily_operations_report():
         ]
         if not recipients:
             print("[OK] Daily report skipped; no recipients configured")
-            return
+            return {"job": "Gửi báo cáo vận hành ngày", "status": "skipped", "reason": "Chưa cấu hình email nhận báo cáo"}
 
         report = generate_operations_report(db)
         html = f"""
@@ -371,24 +451,50 @@ def job_send_daily_operations_report():
           <li>Tien phat chua thu: <strong>{report['tong_tien_phat_chua_thu']:,.0f} VND</strong></li>
         </ul>
         """
+        sent = 0
+        skipped = 0
         for recipient in recipients:
-            send_safe_email(recipient, f"Bao cao van hanh {report['ngay']}", html)
+            if send_safe_email(recipient, f"Bao cao van hanh {report['ngay']}", html):
+                sent += 1
+            else:
+                skipped += 1
         write_system_audit(db, "tu_dong_gui_bao_cao_ngay", "bao_cao", report["ngay"], ",".join(recipients))
         db.commit()
+        return {
+            "job": "Gửi báo cáo vận hành ngày",
+            "status": "ok",
+            "recipients": len(recipients),
+            "sent": sent,
+            "skipped": skipped,
+        }
     except Exception as exc:
         print(f"[ERROR] daily_operations_report: {exc}")
         db.rollback()
+        return {"job": "Gửi báo cáo vận hành ngày", "status": "error", "error": str(exc)}
     finally:
         db.close()
 
 
 def run_automation_once() -> dict:
-    job_update_overdue()
-    job_calculate_daily_fine()
-    job_process_reservation_queues()
-    job_cancel_old_reservations()
-    job_lock_card_on_violation()
-    return {"message": "Automation jobs completed"}
+    jobs = [
+        job_update_overdue(),
+        job_calculate_daily_fine(),
+        job_send_overdue_notifications(),
+        job_process_reservation_queues(),
+        job_cancel_old_reservations(),
+        job_lock_card_on_violation(),
+        job_unlock_paid_reader_cards(),
+        job_send_daily_operations_report(),
+    ]
+    ok_count = sum(1 for job in jobs if job and job.get("status") in ("ok", "skipped"))
+    error_count = sum(1 for job in jobs if job and job.get("status") == "error")
+    return {
+        "message": "Automation jobs completed",
+        "jobs": jobs,
+        "ok_count": ok_count,
+        "error_count": error_count,
+        "ran_at": datetime.now().isoformat(),
+    }
 
 
 def start_scheduler():
@@ -397,9 +503,10 @@ def start_scheduler():
     scheduler.add_job(job_calculate_daily_fine, "cron", hour=0, minute=5, id="calculate_fine")
     scheduler.add_job(job_send_overdue_notifications, "cron", hour=8, minute=0, id="send_notifications")
     scheduler.add_job(job_lock_card_on_violation, "cron", hour="*/6", minute=0, id="lock_card")
+    scheduler.add_job(job_unlock_paid_reader_cards, "cron", hour="*/6", minute=5, id="unlock_paid_cards")
     scheduler.add_job(job_cancel_old_reservations, "cron", day_of_week="mon", hour=0, minute=0, id="cancel_res")
     scheduler.add_job(job_process_reservation_queues, "cron", hour="*/2", minute=10, id="process_reservations")
     scheduler.add_job(job_send_daily_operations_report, "cron", hour=17, minute=30, id="daily_operations_report")
     scheduler.start()
-    print("[OK] Scheduler started with 7 automation jobs")
+    print("[OK] Scheduler started with 8 automation jobs")
     return scheduler

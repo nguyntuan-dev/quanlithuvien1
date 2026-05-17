@@ -10,7 +10,7 @@ from datetime import datetime
 import unicodedata
 import os
 from urllib.parse import urlencode
-from services.automation import LOST_BOOK_COEFFICIENT, BROKEN_BOOK_COEFFICIENT
+from services.automation import BROKEN_BOOK_COEFFICIENT, LOST_BOOK_COEFFICIENT, unlock_reader_card_if_paid
 
 router = APIRouter(prefix="/vi-pham", tags=["ViPham"])
 
@@ -165,12 +165,16 @@ def lay_vietqr(ma: str, db: Session = Depends(get_db)):
 
 @router.put("/{ma}/thanh-toan", response_model=ViPhamOut)
 def thanh_toan(ma: str, db: Session = Depends(get_db)):
-    vp = db.query(ViPhamPhat).filter(ViPhamPhat.ma_phat == ma).first()
+    vp = db.query(ViPhamPhat).options(
+        joinedload(ViPhamPhat.phieu_muon).joinedload(PhieuMuon.doc_gia),
+        joinedload(ViPhamPhat.phieu_muon).joinedload(PhieuMuon.chi_tiet),
+    ).filter(ViPhamPhat.ma_phat == ma).first()
     if not vp:
         raise HTTPException(status_code=404, detail="Không tìm thấy vi phạm")
 
     vp.trang_thai_thanh_toan = TrangThaiPhat.DA_THANH_TOAN
     vp.ngay_thanh_toan = datetime.now()
+    unlock_reader_card_if_paid(db, vp.phieu_muon.doc_gia if vp.phieu_muon else None)
     db.commit()
     db.refresh(vp)
 

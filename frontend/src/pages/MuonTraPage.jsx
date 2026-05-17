@@ -20,7 +20,7 @@ function normalizeSearch(value) {
 
 function taiLieuLabel(tl) {
   if (!tl) return ''
-  return `[${tl.ma_tai_lieu}] ${tl.ten_tai_lieu} (con ${tl.so_luong})`
+  return `[${tl.ma_tai_lieu}] ${tl.ten_tai_lieu} (còn ${tl.so_luong})`
 }
 
 function TaiLieuSearchInput({ value, query, items, onQueryChange, onSelect }) {
@@ -40,7 +40,7 @@ function TaiLieuSearchInput({ value, query, items, onQueryChange, onSelect }) {
       <input
         className="input w-full pl-9"
         value={displayValue}
-        placeholder="Tim theo ma hoac ten tai lieu..."
+        placeholder="Tìm theo mã hoặc tên tài liệu..."
         onFocus={() => setOpen(true)}
         onChange={e => {
           onQueryChange(e.target.value)
@@ -52,7 +52,7 @@ function TaiLieuSearchInput({ value, query, items, onQueryChange, onSelect }) {
       {open && (
         <div className="absolute z-20 mt-1 max-h-64 w-full overflow-y-auto rounded-lg border border-border bg-surface shadow-lg">
           {results.length === 0 ? (
-            <div className="px-3 py-2 text-sm text-ink-muted">Khong tim thay tai lieu con sach</div>
+            <div className="px-3 py-2 text-sm text-ink-muted">Không tìm thấy tài liệu còn sách</div>
           ) : results.map(tl => (
             <button
               key={tl.ma_tai_lieu}
@@ -67,7 +67,7 @@ function TaiLieuSearchInput({ value, query, items, onQueryChange, onSelect }) {
             >
               <span className="font-mono text-xs text-primary">[{tl.ma_tai_lieu}]</span>{' '}
               <span className="font-medium">{tl.ten_tai_lieu}</span>
-              <span className="ml-2 text-xs text-ink-muted">con {tl.so_luong}</span>
+              <span className="ml-2 text-xs text-ink-muted">còn {tl.so_luong}</span>
             </button>
           ))}
         </div>

@@ -1,6 +1,5 @@
 import { X } from 'lucide-react'
 
-// ── Modal ─────────────────────────────────────────────────────────────────────
 export function Modal({ open, onClose, title, children, footer, size = 'md' }) {
   if (!open) return null
   const w = { sm:'max-w-sm', md:'max-w-lg', lg:'max-w-2xl', xl:'max-w-4xl' }[size]
@@ -23,7 +22,6 @@ export function Modal({ open, onClose, title, children, footer, size = 'md' }) {
   )
 }
 
-// ── Page Header ───────────────────────────────────────────────────────────────
 export function PageHeader({ title, subtitle, action }) {
   return (
     <div className="flex items-start justify-between px-6 pt-6 pb-4">
@@ -36,7 +34,6 @@ export function PageHeader({ title, subtitle, action }) {
   )
 }
 
-// ── Stat Card ─────────────────────────────────────────────────────────────────
 export function StatCard({ label, value, sub, color = 'default', icon: Icon }) {
   const colors = {
     default: 'text-ink',
@@ -59,7 +56,6 @@ export function StatCard({ label, value, sub, color = 'default', icon: Icon }) {
   )
 }
 
-// ── Badge ─────────────────────────────────────────────────────────────────────
 export function Badge({ variant = 'gray', children, className }) {
   return (
     <span className={['badge', `badge-${variant}`, className].filter(Boolean).join(' ')}>
@@ -68,7 +64,6 @@ export function Badge({ variant = 'gray', children, className }) {
   )
 }
 
-// ── Form fields ───────────────────────────────────────────────────────────────
 export function Field({ label, children, required }) {
   return (
     <div>
@@ -90,7 +85,6 @@ export function Textarea({ ...props }) {
   return <textarea className="input resize-none" rows={3} {...props} />
 }
 
-// ── Empty state ───────────────────────────────────────────────────────────────
 export function Empty({ message = 'Không có dữ liệu' }) {
   return (
     <div className="flex flex-col items-center py-16 text-ink-faint">
@@ -100,7 +94,6 @@ export function Empty({ message = 'Không có dữ liệu' }) {
   )
 }
 
-// ── Loading ────────────────────────────────────────────────────────────────────
 export function Spinner() {
   return (
     <div className="flex items-center justify-center py-16">
@@ -109,7 +102,6 @@ export function Spinner() {
   )
 }
 
-// ── Search bar ────────────────────────────────────────────────────────────────
 export function SearchBar({ value, onChange, placeholder, children }) {
   return (
     <div className="flex gap-2 mb-4">
@@ -124,7 +116,6 @@ export function SearchBar({ value, onChange, placeholder, children }) {
   )
 }
 
-// ── Confirm dialog ────────────────────────────────────────────────────────────
 export function Confirm({ open, onClose, onConfirm, title, message }) {
   return (
     <Modal open={open} onClose={onClose} title={title} size="sm">
