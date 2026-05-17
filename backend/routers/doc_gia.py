@@ -77,13 +77,16 @@ def them_moi(req: DocGiaCreate, db: Session = Depends(get_db)):
 
 @router.put("/{ma}", response_model=DocGiaOut)
 def cap_nhat(ma: str, req: DocGiaUpdate, db: Session = Depends(get_db)):
-    dg = db.query(DocGia).filter(DocGia.ma_doc_gia == ma).first()
+    dg = db.query(DocGia).options(joinedload(DocGia.the_thu_vien)).filter(DocGia.ma_doc_gia == ma).first()
     if not dg:
         raise HTTPException(status_code=404, detail="Không tìm thấy độc giả")
-    for k, v in req.model_dump(exclude_none=True).items():
+    updates = req.model_dump(exclude_none=True)
+    for k, v in updates.items():
         setattr(dg, k, v)
+    if "trang_thai_the" in updates and dg.the_thu_vien:
+        dg.the_thu_vien.trang_thai = updates["trang_thai_the"]
     db.commit(); db.refresh(dg)
-    return dg
+    return db.query(DocGia).options(joinedload(DocGia.the_thu_vien)).filter(DocGia.ma_doc_gia == ma).first()
 
 @router.delete("/{ma}", status_code=204)
 def xoa(ma: str, db: Session = Depends(get_db)):

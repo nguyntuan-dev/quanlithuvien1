@@ -12,7 +12,7 @@ const THE_LABEL = {
 }
 
 const EMPTY = {
-  ho_ten:'', ngay_sinh:'', gioi_tinh:'nam', dia_chi:'',
+  ho_ten:'', ngay_sinh:'', gioi_tinh:'NAM', dia_chi:'',
   so_dien_thoai:'', email:'', loai_the:'Thẻ sinh viên (1 năm)',
   ngay_cap: new Date().toISOString().slice(0,10), ngay_het_han:''
 }
@@ -40,7 +40,7 @@ export default function DocGiaPage() {
     setEditing(it.ma_doc_gia)
     setForm({
       ho_ten: it.ho_ten, ngay_sinh: it.ngay_sinh || '',
-      gioi_tinh: it.gioi_tinh || 'nam', dia_chi: it.dia_chi || '',
+      gioi_tinh: it.gioi_tinh || 'NAM', dia_chi: it.dia_chi || '',
       so_dien_thoai: it.so_dien_thoai || '', email: it.email || '',
       trang_thai_the: it.trang_thai_the,
     })
@@ -136,9 +136,9 @@ export default function DocGiaPage() {
           <Field label="Ngày sinh"><Input type="date" value={form.ngay_sinh} onChange={f('ngay_sinh')} /></Field>
           <Field label="Giới tính">
             <Select value={form.gioi_tinh} onChange={f('gioi_tinh')}>
-              <option value="nam">Nam</option>
-              <option value="nu">Nữ</option>
-              <option value="khac">Khác</option>
+              <option value="NAM">Nam</option>
+              <option value="NU">Nữ</option>
+              <option value="KHAC">Khác</option>
             </Select>
           </Field>
           <Field label="Số điện thoại"><Input value={form.so_dien_thoai} onChange={f('so_dien_thoai')} placeholder="0xxx xxx xxx" /></Field>
@@ -159,13 +159,30 @@ export default function DocGiaPage() {
             </Field>
             <Field label="Ngày cấp"><Input type="date" value={form.ngay_cap} onChange={f('ngay_cap')} /></Field>
           </>}
-          {editing && <Field label="Trạng thái thẻ">
-            <Select value={form.trang_thai_the} onChange={f('trang_thai_the')}>
-              <option value="CON_HIEU_LUC">Còn hiệu lực</option>
-              <option value="HET_HAN">Hết hạn</option>
-              <option value="BI_KHOA">Bị khóa</option>
-            </Select>
-          </Field>}
+          {editing && (
+            <Field label="Trạng thái thẻ">
+              <div className="grid grid-cols-3 overflow-hidden rounded-lg border border-border bg-surface-soft p-1">
+                {[
+                  ['CON_HIEU_LUC', 'Còn hiệu lực'],
+                  ['HET_HAN', 'Hết hạn'],
+                  ['BI_KHOA', 'Bị khóa'],
+                ].map(([value, label]) => (
+                  <button
+                    key={value}
+                    type="button"
+                    className={`px-3 py-2 text-sm font-medium transition ${
+                      form.trang_thai_the === value
+                        ? 'rounded-md bg-primary text-white shadow-sm'
+                        : 'text-ink-muted hover:text-ink'
+                    }`}
+                    onClick={() => setForm(p => ({ ...p, trang_thai_the: value }))}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </Field>
+          )}
         </div>
         <div className="flex gap-2 justify-end mt-6">
           <button className="btn btn-secondary" onClick={() => setModal(false)}>Hủy</button>
