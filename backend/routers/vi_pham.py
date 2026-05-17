@@ -14,6 +14,11 @@ from services.automation import LOST_BOOK_COEFFICIENT, BROKEN_BOOK_COEFFICIENT
 
 router = APIRouter(prefix="/vi-pham", tags=["ViPham"])
 
+DEFAULT_VIETQR_BANK = "MB"
+DEFAULT_VIETQR_ACCOUNT_NO = "0355692135"
+DEFAULT_VIETQR_ACCOUNT_NAME = "THU VIEN"
+DEFAULT_VIETQR_TEMPLATE = "compact2"
+
 # -------------------
 # Helpers
 # -------------------
@@ -129,10 +134,10 @@ def lay_vietqr(ma: str, db: Session = Depends(get_db)):
     if vp.trang_thai_thanh_toan == TrangThaiPhat.DA_THANH_TOAN:
         raise HTTPException(status_code=400, detail="Vi phạm này đã thanh toán")
 
-    bank = get_setting(db, "vietqr_ngan_hang", "VIETQR_BANK")
-    account_no = get_setting(db, "vietqr_so_tai_khoan", "VIETQR_ACCOUNT_NO")
-    account_name = get_setting(db, "vietqr_ten_tai_khoan", "VIETQR_ACCOUNT_NAME", "THU VIEN")
-    template = get_setting(db, "vietqr_mau_qr", "VIETQR_TEMPLATE", "compact2")
+    bank = get_setting(db, "vietqr_ngan_hang", "VIETQR_BANK", DEFAULT_VIETQR_BANK)
+    account_no = get_setting(db, "vietqr_so_tai_khoan", "VIETQR_ACCOUNT_NO", DEFAULT_VIETQR_ACCOUNT_NO)
+    account_name = get_setting(db, "vietqr_ten_tai_khoan", "VIETQR_ACCOUNT_NAME", DEFAULT_VIETQR_ACCOUNT_NAME)
+    template = get_setting(db, "vietqr_mau_qr", "VIETQR_TEMPLATE", DEFAULT_VIETQR_TEMPLATE)
     if not bank or not account_no:
         raise HTTPException(
             status_code=400,

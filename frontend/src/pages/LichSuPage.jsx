@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useState } from 'react'
 import toast from 'react-hot-toast'
 import { muonTraApi, viPhamApi, datTruocApi } from '../services/api'
-import { PageHeader, Field, Input, Badge, Spinner, Empty } from '../components/UI'
+import { PageHeader, Field, Input, Badge, Spinner, Empty, Modal } from '../components/UI'
 import { useAuth } from '../hooks/useAuth'
-import { AlertCircle, RotateCcw, Search, Undo2, X } from 'lucide-react'
+import { AlertCircle, Copy, QrCode, RotateCcw, Search, Undo2, X } from 'lucide-react'
 
 const ACTIVE_STATUSES = new Set(['DANG_MUON', 'QUA_HAN'])
 
@@ -49,6 +49,9 @@ export default function LichSuPage() {
   const [reservations, setReservations] = useState([])
   const [loading, setLoading] = useState(false)
   const [busyId, setBusyId] = useState(null)
+  const [qrModal, setQrModal] = useState(false)
+  const [qrInfo, setQrInfo] = useState(null)
+  const [qrLoading, setQrLoading] = useState(false)
 
   const activeLoans = useMemo(
     () => items.filter(pm => ACTIVE_STATUSES.has(pm.trang_thai)).length,
@@ -157,6 +160,24 @@ export default function LichSuPage() {
     } catch (err) {}
   }
 
+  const openVietQR = async (ma) => {
+    setQrModal(true)
+    setQrInfo(null)
+    setQrLoading(true)
+    try {
+      const { data } = await viPhamApi.vietqr(ma)
+      setQrInfo(data)
+    } finally {
+      setQrLoading(false)
+    }
+  }
+
+  const copyPaymentContent = async () => {
+    if (!qrInfo?.noi_dung) return
+    await navigator.clipboard.writeText(qrInfo.noi_dung)
+    toast.success('Da sao chep noi dung chuyen khoan')
+  }
+
   const getReservationBadge = (status) => {
     switch (status) {
       case 'cho_xu_ly':   return <Badge variant="yellow">Chờ duyệt</Badge>
@@ -231,6 +252,7 @@ export default function LichSuPage() {
             <div className="space-y-3">
               {violations.map(vp => {
                 const payment = PAYMENT_META[vp.trang_thai_thanh_toan?.toUpperCase()] || { label: vp.trang_thai_thanh_toan, variant: 'gray' }
+                const unpaid = vp.trang_thai_thanh_toan?.toUpperCase() !== 'DA_THANH_TOAN'
                 return (
                   <div key={vp.ma_phat} className="flex items-center justify-between gap-4 p-3 bg-surface rounded-lg border border-danger/20 shadow-sm">
                     <div>
@@ -243,6 +265,11 @@ export default function LichSuPage() {
                     <div className="text-right shrink-0">
                       <div className="font-bold text-danger">{formatMoney(vp.so_tien)}</div>
                       <Badge variant={payment.variant}>{payment.label}</Badge>
+                      {isReader && unpaid && (
+                        <button className="btn btn-primary py-1 px-3 text-xs mt-2" onClick={() => openVietQR(vp.ma_phat)}>
+                          <QrCode size={12} /> VietQR
+                        </button>
+                      )}
                     </div>
                   </div>
                 )
@@ -349,6 +376,42 @@ export default function LichSuPage() {
           </div>
         </div>
       </div>
+
+      <Modal
+        open={qrModal}
+        onClose={() => setQrModal(false)}
+        title="Thanh toan tien phat bang VietQR"
+        size="md"
+      >
+        {qrLoading ? <Spinner /> : qrInfo && (
+          <div className="grid gap-5 md:grid-cols-[220px_1fr] items-start">
+            <div className="rounded-xl border border-border bg-white p-3">
+              <img src={qrInfo.qr_url} alt="VietQR thanh toan tien phat" className="w-full aspect-square object-contain" />
+            </div>
+            <div className="space-y-3 text-sm">
+              <div>
+                <div className="text-ink-muted">So tien</div>
+                <div className="text-2xl font-semibold text-danger">
+                  {Number(qrInfo.so_tien).toLocaleString('vi-VN')}d
+                </div>
+              </div>
+              <div className="grid grid-cols-[120px_1fr] gap-y-2">
+                <span className="text-ink-muted">Ngan hang</span>
+                <span className="font-medium">{qrInfo.ngan_hang}</span>
+                <span className="text-ink-muted">So tai khoan</span>
+                <span className="font-mono">{qrInfo.so_tai_khoan}</span>
+                <span className="text-ink-muted">Chu tai khoan</span>
+                <span className="font-medium">{qrInfo.ten_tai_khoan}</span>
+                <span className="text-ink-muted">Noi dung</span>
+                <span className="font-mono">{qrInfo.noi_dung}</span>
+              </div>
+              <button className="btn btn-secondary" onClick={copyPaymentContent}>
+                <Copy size={15} /> Sao chep noi dung
+              </button>
+            </div>
+          </div>
+        )}
+      </Modal>
     </div>
   )
 }

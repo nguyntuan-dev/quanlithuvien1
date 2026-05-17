@@ -44,6 +44,14 @@ def startup_event():
                 {"password_hash": default_password_hash},
             )
             conn.execute(text("""
+                INSERT INTO cau_hinh_he_thong (khoa, gia_tri, mo_ta) VALUES
+                  ('vietqr_ngan_hang', 'MB', 'Ma ngan hang VietQR'),
+                  ('vietqr_so_tai_khoan', '0355692135', 'So tai khoan nhan tien phat'),
+                  ('vietqr_ten_tai_khoan', 'THU VIEN', 'Ten chu tai khoan nhan tien phat'),
+                  ('vietqr_mau_qr', 'compact2', 'Mau anh VietQR')
+                ON CONFLICT (khoa) DO NOTHING
+            """))
+            conn.execute(text("""
                 INSERT INTO the_loai (ma_the_loai, ten_the_loai) VALUES
                   ('TRIETON', 'Triết học / Tôn giáo'),
                   ('TAMLY', 'Tâm lý học / Phát triển bản thân'),
