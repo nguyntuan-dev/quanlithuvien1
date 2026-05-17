@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { muonTraApi, taiLieuApi, docGiaApi } from '../services/api'
 import { PageHeader, Modal, Field, Input, Badge, Spinner, Empty } from '../components/UI'
-import { Plus, RotateCcw, Trash2 } from 'lucide-react'
+import { Plus, RotateCcw, Search, Trash2 } from 'lucide-react'
 import toast from 'react-hot-toast'
 
 const TT_LABEL = {
@@ -9,6 +9,71 @@ const TT_LABEL = {
   CHO_TRA:   { label: 'Chờ duyệt trả', variant: 'yellow' },
   DA_TRA:    { label: 'Đã trả',    variant: 'green' },
   QUA_HAN:   { label: 'Quá hạn',   variant: 'red' },
+}
+
+function normalizeSearch(value) {
+  return String(value || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+}
+
+function taiLieuLabel(tl) {
+  if (!tl) return ''
+  return `[${tl.ma_tai_lieu}] ${tl.ten_tai_lieu} (con ${tl.so_luong})`
+}
+
+function TaiLieuSearchInput({ value, query, items, onQueryChange, onSelect }) {
+  const [open, setOpen] = useState(false)
+  const selected = items.find(tl => tl.ma_tai_lieu === value)
+  const displayValue = query || taiLieuLabel(selected)
+  const keyword = normalizeSearch(query)
+  const available = items.filter(tl => Number(tl.so_luong || 0) > 0)
+  const results = (keyword
+    ? available.filter(tl => normalizeSearch(`${tl.ma_tai_lieu} ${tl.ten_tai_lieu}`).includes(keyword))
+    : available
+  ).slice(0, 8)
+
+  return (
+    <div className="relative flex-1">
+      <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-faint" />
+      <input
+        className="input w-full pl-9"
+        value={displayValue}
+        placeholder="Tim theo ma hoac ten tai lieu..."
+        onFocus={() => setOpen(true)}
+        onChange={e => {
+          onQueryChange(e.target.value)
+          onSelect('')
+          setOpen(true)
+        }}
+        onBlur={() => setTimeout(() => setOpen(false), 120)}
+      />
+      {open && (
+        <div className="absolute z-20 mt-1 max-h-64 w-full overflow-y-auto rounded-lg border border-border bg-surface shadow-lg">
+          {results.length === 0 ? (
+            <div className="px-3 py-2 text-sm text-ink-muted">Khong tim thay tai lieu con sach</div>
+          ) : results.map(tl => (
+            <button
+              key={tl.ma_tai_lieu}
+              type="button"
+              className="block w-full px-3 py-2 text-left text-sm hover:bg-surface-soft"
+              onMouseDown={e => {
+                e.preventDefault()
+                onSelect(tl.ma_tai_lieu)
+                onQueryChange('')
+                setOpen(false)
+              }}
+            >
+              <span className="font-mono text-xs text-primary">[{tl.ma_tai_lieu}]</span>{' '}
+              <span className="font-medium">{tl.ten_tai_lieu}</span>
+              <span className="ml-2 text-xs text-ink-muted">con {tl.so_luong}</span>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  )
 }
 
 export default function MuonTraPage() {
@@ -24,7 +89,7 @@ export default function MuonTraPage() {
   const [maDocGia, setMaDocGia]   = useState('')
   const [docGiaInfo, setDocGiaInfo] = useState(null)
   const [hanTra, setHanTra]       = useState('')
-  const [chiTiet, setChiTiet]     = useState([{ ma_tai_lieu: '', so_luong: 1 }])
+  const [chiTiet, setChiTiet]     = useState([{ ma_tai_lieu: '', so_luong: 1, search: '' }])
   const [maDatTruoc, setMaDatTruoc] = useState('')
   const [saving, setSaving]       = useState(false)
   const [taiLieuList, setTaiLieuList] = useState([])
@@ -61,7 +126,7 @@ export default function MuonTraPage() {
     try {
       const { data } = await muonTraApi.getReservation(maDatTruoc.trim())
       setMaDocGia(data.ma_doc_gia)
-      setChiTiet([{ ma_tai_lieu: data.ma_tai_lieu, so_luong: data.so_luong }])
+      setChiTiet([{ ma_tai_lieu: data.ma_tai_lieu, so_luong: data.so_luong, search: '' }])
       
       // Sau đó lookup độc giả để hiện info
       const resDocGia = await docGiaApi.get(data.ma_doc_gia)
@@ -73,7 +138,7 @@ export default function MuonTraPage() {
     }
   }
 
-  const addChiTiet = () => setChiTiet(p => [...p, { ma_tai_lieu: '', so_luong: 1 }])
+  const addChiTiet = () => setChiTiet(p => [...p, { ma_tai_lieu: '', so_luong: 1, search: '' }])
   const removeChiTiet = (i) => setChiTiet(p => p.filter((_, idx) => idx !== i))
   const updateChiTiet = (i, k, v) => setChiTiet(p => p.map((r, idx) => idx === i ? { ...r, [k]: v } : r))
 
@@ -86,12 +151,12 @@ export default function MuonTraPage() {
       await muonTraApi.create({
         ma_doc_gia: maDocGia.trim(),
         han_tra: hanTra,
-        chi_tiet: chiTiet.map(c => ({ ...c, so_luong: Number(c.so_luong) }))
+        chi_tiet: chiTiet.map(c => ({ ma_tai_lieu: c.ma_tai_lieu, so_luong: Number(c.so_luong) }))
       })
       toast.success('Lập phiếu mượn thành công!')
       setMuonModal(false)
       setMaDocGia(''); setDocGiaInfo(null); setHanTra(''); setMaDatTruoc('')
-      setChiTiet([{ ma_tai_lieu: '', so_luong: 1 }])
+      setChiTiet([{ ma_tai_lieu: '', so_luong: 1, search: '' }])
       load()
     } finally { setSaving(false) }
   }
@@ -253,8 +318,15 @@ export default function MuonTraPage() {
             <div className="space-y-2">
               {chiTiet.map((ct, i) => (
                 <div key={i} className="flex gap-2 items-center">
+                  <TaiLieuSearchInput
+                    value={ct.ma_tai_lieu}
+                    query={ct.search || ''}
+                    items={taiLieuList}
+                    onQueryChange={v => updateChiTiet(i, 'search', v)}
+                    onSelect={v => updateChiTiet(i, 'ma_tai_lieu', v)}
+                  />
                   <select
-                    className="input flex-1"
+                    className="hidden"
                     value={ct.ma_tai_lieu}
                     onChange={e => updateChiTiet(i, 'ma_tai_lieu', e.target.value)}
                   >

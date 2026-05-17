@@ -118,6 +118,8 @@ export const heThongApi = {
   cauHinh: () => api.get('/he-thong/cau-hinh'),
   updateCauHinh: (khoa, d) => api.put(`/he-thong/cau-hinh/${khoa}`, d),
   auditLog: (p) => api.get('/he-thong/audit-log', { params: p }),
+  operationsReport: () => api.get('/he-thong/bao-cao-van-hanh'),
+  runAutomation: () => api.post('/he-thong/tu-dong/chay-ngay'),
   backup: () => api.get('/he-thong/backup'),
   restore: (d) => api.post('/he-thong/restore', d),
 }

@@ -27,22 +27,28 @@ app.add_middleware(
 def startup_event():
     try:
         Base.metadata.create_all(bind=engine)
-        default_password_hash = hashlib.sha256(
-            os.getenv("DEFAULT_STAFF_PASSWORD", "18112006").encode()
-        ).hexdigest()
+        default_staff_password = os.getenv("DEFAULT_STAFF_PASSWORD")
+        default_password_hash = (
+            hashlib.sha256(default_staff_password.encode()).hexdigest()
+            if default_staff_password
+            else None
+        )
         with engine.begin() as conn:
             conn.execute(text("ALTER TABLE tai_lieu ADD COLUMN IF NOT EXISTS gia NUMERIC(12, 0) DEFAULT 0"))
             conn.execute(text("ALTER TABLE tai_lieu ADD COLUMN IF NOT EXISTS anh_bia TEXT"))
             conn.execute(text("ALTER TABLE doc_gia ADD COLUMN IF NOT EXISTS mat_khau_hash VARCHAR(255)"))
-            conn.execute(
-                text("""
-                    INSERT INTO nhan_vien (ma_nhan_vien, ho_ten, chuc_vu, email, mat_khau_hash, la_admin) VALUES
-                      ('NV000001', 'Quan tri vien',  'Admin',  'admin@thuvien.vn', :password_hash, true),
-                      ('NV000002', 'Nguyen Thi Lan', 'Thu thu', 'lan@thuvien.vn',   :password_hash, false)
-                    ON CONFLICT DO NOTHING
-                """),
-                {"password_hash": default_password_hash},
-            )
+            if default_password_hash:
+                conn.execute(
+                    text("""
+                        INSERT INTO nhan_vien (ma_nhan_vien, ho_ten, chuc_vu, email, mat_khau_hash, la_admin) VALUES
+                          ('NV000001', 'Quan tri vien',  'Admin',  'admin@thuvien.vn', :password_hash, true),
+                          ('NV000002', 'Nguyen Thi Lan', 'Thu thu', 'lan@thuvien.vn',   :password_hash, false)
+                        ON CONFLICT DO NOTHING
+                    """),
+                    {"password_hash": default_password_hash},
+                )
+            else:
+                print("DEFAULT_STAFF_PASSWORD is not set; skipped default staff seeding.")
             conn.execute(text("""
                 INSERT INTO cau_hinh_he_thong (khoa, gia_tri, mo_ta) VALUES
                   ('vietqr_ngan_hang', 'MB', 'Ma ngan hang VietQR'),

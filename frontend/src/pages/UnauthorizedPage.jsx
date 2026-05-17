@@ -1,63 +1,53 @@
 import { useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../hooks/useAuth'
 
 export default function UnauthorizedPage() {
   const { user } = useAuth()
+  const navigate = useNavigate()
 
   useEffect(() => {
-    // Nếu đã có user token, redirect về dashboard
     if (user) {
-      window.location.href = '/'
+      navigate('/', { replace: true })
     }
-  }, [user])
+  }, [navigate, user])
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-red-50 via-white to-red-50 flex items-center justify-center p-4">
+    <div className="min-h-screen bg-gradient-to-br from-red-50 via-white to-slate-50 flex items-center justify-center p-4">
       <div className="w-full max-w-md text-center">
         <div className="mb-6">
-          <h1 className="text-6xl font-bold text-red-600 mb-2">❌</h1>
+          <div className="mx-auto mb-4 flex h-20 w-20 items-center justify-center rounded-full bg-red-100 text-5xl font-bold text-red-600">
+            X
+          </div>
           <h2 className="text-3xl font-bold text-gray-800">Truy cập bị từ chối</h2>
         </div>
 
         <div className="bg-white rounded-lg shadow-lg p-8 mb-6">
-          <p className="text-gray-600 mb-4">
-            Bạn cần xác thực để truy cập hệ thống quản lý thư viện.
+          <p className="text-gray-600 mb-6">
+            Phiên đăng nhập không hợp lệ hoặc bạn chưa đăng nhập vào hệ thống quản lý thư viện.
           </p>
-          
-          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
-            <p className="text-sm text-gray-700 mb-3">
-              <strong>Hướng dẫn đăng nhập:</strong>
-            </p>
-            <code className="text-xs bg-gray-100 p-3 rounded block text-left mb-3 overflow-auto">
-{`POST /api/auth/dang-nhap
 
-{
-  "email": "admin@thuvien.vn",
-  "mat_khau": "18112006"
-}`}
-            </code>
-            <p className="text-xs text-gray-600">
-              Gửi request POST tới API endpoint trên để lấy token JWT, rồi đưa vào header:
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6 text-left">
+            <p className="text-sm font-semibold text-gray-800 mb-2">Cách xử lý</p>
+            <p className="text-sm text-gray-700">
+              Vui lòng quay lại trang đăng nhập và sử dụng tài khoản được quản trị viên cấp.
+              Thông tin đăng nhập nội bộ sẽ không được hiển thị công khai trên giao diện.
             </p>
-            <code className="text-xs bg-gray-100 p-2 rounded block text-left mt-2">
-              Authorization: Bearer {'{token}'}</code>
           </div>
 
-          <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+          <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 text-left">
             <p className="text-sm text-gray-700">
-              <strong>⚠️ Lưu ý:</strong> Giao diện frontend chỉ hoạt động khi bạn đã đăng nhập thông qua API.
-            </p>
-            <p className="text-xs text-gray-600 mt-2">
-              Nếu bạn là nhân viên thư viện, liên hệ quản trị viên để lấy tài khoản.
+              Nếu bạn là nhân viên thư viện nhưng vẫn không truy cập được, hãy liên hệ quản trị viên để kiểm tra quyền tài khoản.
             </p>
           </div>
         </div>
 
         <button
-          onClick={() => window.location.reload()}
+          type="button"
+          onClick={() => navigate('/login', { replace: true })}
           className="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-6 rounded-lg transition-colors"
         >
-          Thử lại
+          Đăng nhập
         </button>
       </div>
     </div>
