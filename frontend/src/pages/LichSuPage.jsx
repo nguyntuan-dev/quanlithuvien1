@@ -28,6 +28,32 @@ function formatMoney(value) {
   return `${Number(value || 0).toLocaleString('vi-VN')}đ`
 }
 
+function normalizeVietnamese(value = '') {
+  return value
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+}
+
+function formatFineReason(reason) {
+  const normalized = normalizeVietnamese(reason)
+  if (normalized.includes('mat sach') && normalized.includes('tinh theo gia sach')) {
+    return 'Mất sách - tính theo giá sách'
+  }
+  if (
+    (normalized.includes('sach rach') || normalized.includes('sach hong') || normalized.includes('rach/hong')) &&
+    normalized.includes('tinh theo gia sach')
+  ) {
+    return 'Sách rách/hỏng - tính theo giá sách'
+  }
+  if (normalized.startsWith('qua han tra sach')) {
+    return reason
+      .replace(/Qua han tra sach/i, 'Quá hạn trả sách')
+      .replace(/ ngay\)/i, ' ngày)')
+  }
+  return reason || '-'
+}
+
 function statusBadge(status) {
   const meta = STATUS_META[status] || { label: status || '-', variant: 'gray' }
   return <Badge variant={meta.variant}>{meta.label}</Badge>
@@ -287,7 +313,7 @@ export default function LichSuPage() {
                 return (
                   <div key={vp.ma_phat} className="flex items-center justify-between gap-4 p-3 bg-surface rounded-lg border border-danger/20 shadow-sm">
                     <div>
-                      <div className="font-medium text-danger">{vp.ly_do_phat}</div>
+                      <div className="font-medium text-danger">{formatFineReason(vp.ly_do_phat)}</div>
                       <div className="text-xs text-ink-muted">
                         {!isReader && `${readerName(vp.phieu_muon)} - `}
                         Ngày: {formatDate(vp.ngay_phat)} - Mã: {vp.ma_phat}

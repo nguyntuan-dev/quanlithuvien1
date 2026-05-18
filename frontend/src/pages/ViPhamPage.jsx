@@ -11,6 +11,32 @@ const TT_LABEL = {
   DA_THANH_TOAN: { label: 'Đã thanh toán', variant: 'green' },
 }
 
+function normalizeVietnamese(value = '') {
+  return value
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+}
+
+function formatFineReason(reason) {
+  const normalized = normalizeVietnamese(reason)
+  if (normalized.includes('mat sach') && normalized.includes('tinh theo gia sach')) {
+    return 'Mất sách - tính theo giá sách'
+  }
+  if (
+    (normalized.includes('sach rach') || normalized.includes('sach hong') || normalized.includes('rach/hong')) &&
+    normalized.includes('tinh theo gia sach')
+  ) {
+    return 'Sách rách/hỏng - tính theo giá sách'
+  }
+  if (normalized.startsWith('qua han tra sach')) {
+    return reason
+      .replace(/Qua han tra sach/i, 'Quá hạn trả sách')
+      .replace(/ ngay\)/i, ' ngày)')
+  }
+  return reason || '-'
+}
+
 export default function ViPhamPage() {
   const [items, setItems] = useState([])
   const [loading, setLoading] = useState(true)
@@ -103,7 +129,7 @@ export default function ViPhamPage() {
                           <td className="td font-mono text-xs">{vp.ma_phat}</td>
                           <td className="td">{vp.phieu_muon?.doc_gia?.ho_ten || '-'}</td>
                           <td className="td font-mono text-xs">{vp.phieu_muon?.ma_phieu_muon || '-'}</td>
-                          <td className="td">{vp.ly_do_phat}</td>
+                          <td className="td">{formatFineReason(vp.ly_do_phat)}</td>
                           <td className="td font-semibold text-danger">
                             {Number(vp.so_tien).toLocaleString('vi-VN')}đ
                           </td>

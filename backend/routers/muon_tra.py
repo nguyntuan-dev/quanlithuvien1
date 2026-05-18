@@ -213,7 +213,7 @@ def tra_sach(req: TraSachRequest, db: Session = Depends(get_db)):
             item.ma_tai_lieu = ""
 
     if validation.condition_type:
-        label = "Mat sach" if validation.condition_type == "lost" else "Sach rach/hong"
+        label = "Mất sách" if validation.condition_type == "lost" else "Sách rách/hỏng"
         db.add(ViPhamPhat(
             ma_phat="VP-" + uuid.uuid4().hex[:8].upper(),
             ly_do_phat=f"{label} - tính theo giá sách",
