@@ -4,7 +4,7 @@ import {
   LayoutDashboard, BookOpen, Users, BookMarked, Clock, AlertTriangle,
   BarChart2, UserCheck, LogOut, Search, History, Settings, Heart
 } from 'lucide-react'
-import logo from '../assets/logo.png'
+import logo from '../assets/logo-small.png'
 
 const NAV = [
   { to: '/', label: 'Tổng quan', icon: LayoutDashboard, exact: true, staffOnly: true },

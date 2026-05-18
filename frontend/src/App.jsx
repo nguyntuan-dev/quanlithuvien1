@@ -1,22 +1,25 @@
+import { lazy, Suspense } from 'react'
 import { Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider, useAuth } from './hooks/useAuth'
 import Layout from './components/Layout'
-import DashboardPage from './pages/DashboardPage'
-import CatalogPage from './pages/CatalogPage'
-import TaiLieuPage from './pages/TaiLieuPage'
-import DocGiaPage from './pages/DocGiaPage'
-import MuonTraPage from './pages/MuonTraPage'
-import DatTruocPage from './pages/DatTruocPage'
-import ViPhamPage from './pages/ViPhamPage'
-import NhanVienPage from './pages/NhanVienPage'
-import ThongKePage from './pages/ThongKePage'
-import LichSuPage from './pages/LichSuPage'
-import HeThongPage from './pages/HeThongPage'
-import ProfilePage from './pages/ProfilePage'
-import FavoritePage from './pages/FavoritePage'
-import UnauthorizedPage from './pages/UnauthorizedPage'
-import LoginPage from './pages/LoginPage'
-import RegisterPage from './pages/RegisterPage'
+import { Spinner } from './components/UI'
+
+const DashboardPage = lazy(() => import('./pages/DashboardPage'))
+const CatalogPage = lazy(() => import('./pages/CatalogPage'))
+const TaiLieuPage = lazy(() => import('./pages/TaiLieuPage'))
+const DocGiaPage = lazy(() => import('./pages/DocGiaPage'))
+const MuonTraPage = lazy(() => import('./pages/MuonTraPage'))
+const DatTruocPage = lazy(() => import('./pages/DatTruocPage'))
+const ViPhamPage = lazy(() => import('./pages/ViPhamPage'))
+const NhanVienPage = lazy(() => import('./pages/NhanVienPage'))
+const ThongKePage = lazy(() => import('./pages/ThongKePage'))
+const LichSuPage = lazy(() => import('./pages/LichSuPage'))
+const HeThongPage = lazy(() => import('./pages/HeThongPage'))
+const ProfilePage = lazy(() => import('./pages/ProfilePage'))
+const FavoritePage = lazy(() => import('./pages/FavoritePage'))
+const UnauthorizedPage = lazy(() => import('./pages/UnauthorizedPage'))
+const LoginPage = lazy(() => import('./pages/LoginPage'))
+const RegisterPage = lazy(() => import('./pages/RegisterPage'))
 
 function ProtectedRoute({ children }) {
   const { user } = useAuth()
@@ -44,27 +47,29 @@ function HomeRoute() {
 export default function App() {
   return (
     <AuthProvider>
-      <Routes>
-        <Route path="/login" element={<LoginPage />} />
-        <Route path="/register" element={<RegisterPage />} />
-        <Route path="/unauthorized" element={<UnauthorizedPage />} />
-        <Route path="/" element={<ProtectedRoute><Layout /></ProtectedRoute>}>
-          <Route index element={<HomeRoute />} />
-          <Route path="tra-cuu"   element={<CatalogPage />} />
-          <Route path="tai-lieu"  element={<StaffRoute><TaiLieuPage /></StaffRoute>} />
-          <Route path="doc-gia"   element={<StaffRoute><DocGiaPage /></StaffRoute>} />
-          <Route path="muon-tra"  element={<StaffRoute><MuonTraPage /></StaffRoute>} />
-          <Route path="dat-truoc" element={<StaffRoute><DatTruocPage /></StaffRoute>} />
-          <Route path="vi-pham"   element={<StaffRoute><ViPhamPage /></StaffRoute>} />
-          <Route path="nhan-vien" element={<AdminRoute><NhanVienPage /></AdminRoute>} />
-          <Route path="lich-su"   element={<LichSuPage />} />
-          <Route path="profile"   element={<ProfilePage />} />
-          <Route path="yeu-thich" element={<FavoritePage />} />
-          <Route path="thong-ke"  element={<StaffRoute><ThongKePage /></StaffRoute>} />
-          <Route path="he-thong"  element={<AdminRoute><HeThongPage /></AdminRoute>} />
-        </Route>
-        <Route path="*" element={<Navigate to="/" replace />} />
-      </Routes>
+      <Suspense fallback={<Spinner />}>
+        <Routes>
+          <Route path="/login" element={<LoginPage />} />
+          <Route path="/register" element={<RegisterPage />} />
+          <Route path="/unauthorized" element={<UnauthorizedPage />} />
+          <Route path="/" element={<ProtectedRoute><Layout /></ProtectedRoute>}>
+            <Route index element={<HomeRoute />} />
+            <Route path="tra-cuu"   element={<CatalogPage />} />
+            <Route path="tai-lieu"  element={<StaffRoute><TaiLieuPage /></StaffRoute>} />
+            <Route path="doc-gia"   element={<StaffRoute><DocGiaPage /></StaffRoute>} />
+            <Route path="muon-tra"  element={<StaffRoute><MuonTraPage /></StaffRoute>} />
+            <Route path="dat-truoc" element={<StaffRoute><DatTruocPage /></StaffRoute>} />
+            <Route path="vi-pham"   element={<StaffRoute><ViPhamPage /></StaffRoute>} />
+            <Route path="nhan-vien" element={<AdminRoute><NhanVienPage /></AdminRoute>} />
+            <Route path="lich-su"   element={<LichSuPage />} />
+            <Route path="profile"   element={<ProfilePage />} />
+            <Route path="yeu-thich" element={<FavoritePage />} />
+            <Route path="thong-ke"  element={<StaffRoute><ThongKePage /></StaffRoute>} />
+            <Route path="he-thong"  element={<AdminRoute><HeThongPage /></AdminRoute>} />
+          </Route>
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
+      </Suspense>
     </AuthProvider>
   )
 }

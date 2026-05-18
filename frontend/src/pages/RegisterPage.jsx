@@ -4,7 +4,7 @@ import { Eye, EyeOff, Home, Lock, Mail, User, Calendar, Phone, KeyRound } from '
 import toast from 'react-hot-toast'
 import { useAuth } from '../hooks/useAuth'
 import { authApi } from '../services/api'
-import logo from '../assets/logo.png'
+import logo from '../assets/logo-small.png'
 
 const registerHeroImage = 'https://images.unsplash.com/photo-1481627834876-b7833e8f5570?auto=format&fit=crop&w=1200&q=80'
 
