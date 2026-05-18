@@ -10,8 +10,8 @@ import os
 
 load_dotenv()
 app = FastAPI(
-    title="He thong Quan ly Thu vien API",
-    description="API cho he thong quan ly thu vien so",
+    title="Hệ thống Quản lý Thư viện API",
+    description="API cho hệ thống quản lý thư viện số",
     version="1.0.0"
 )
 
@@ -51,10 +51,11 @@ def startup_event():
                 print("DEFAULT_STAFF_PASSWORD is not set; skipped default staff seeding.")
             conn.execute(text("""
                 INSERT INTO cau_hinh_he_thong (khoa, gia_tri, mo_ta) VALUES
-                  ('vietqr_ngan_hang', 'MB', 'Ma ngan hang VietQR'),
-                  ('vietqr_so_tai_khoan', '0355692135', 'So tai khoan nhan tien phat'),
-                  ('vietqr_ten_tai_khoan', 'THU VIEN', 'Ten chu tai khoan nhan tien phat'),
-                  ('vietqr_mau_qr', 'compact2', 'Mau anh VietQR')
+                  ('vietqr_ngan_hang', 'MB', 'Mã ngân hàng VietQR'),
+                  ('vietqr_so_tai_khoan', '0355692135', 'Số tài khoản nhận tiền phạt'),
+                  ('vietqr_ten_tai_khoan', 'THU VIEN', 'Tên chủ tài khoản nhận tiền phạt'),
+                  ('vietqr_mau_qr', 'compact2', 'Mẫu ảnh VietQR'),
+                  ('vietqr_webhook_token', '', 'Token bảo mật webhook xác nhận thanh toán VietQR')
                 ON CONFLICT (khoa) DO NOTHING
             """))
             conn.execute(text("""
@@ -80,14 +81,14 @@ app.include_router(dat_truoc.router,  prefix="/api/dat-truoc", tags=["Dat truoc"
 app.include_router(vi_pham.router,    prefix="/api/vi-pham",   tags=["Vi pham & Phat"])
 app.include_router(nhan_vien.router,  prefix="/api/nhan-vien", tags=["Nhan vien"])
 app.include_router(thong_ke.router,   prefix="/api/thong-ke",  tags=["Thong ke"])
-app.include_router(he_thong.router,   prefix="/api/he-thong",  tags=["He thong"])
+app.include_router(he_thong.router,   prefix="/api/he-thong",  tags=["Hệ thống"])
 app.include_router(yeu_thich.router,  prefix="/api/yeu-thich", tags=["Yeu thich"])
 
 scheduler = start_scheduler()
 
 @app.get("/")
 def root():
-    return {"message": "Thu Vien Pro API dang hoat dong", "version": "1.0.0", "automation": "active"}
+    return {"message": "Thu Vien Pro API đang hoạt động", "version": "1.0.0", "automation": "active"}
 
 @app.on_event("shutdown")
 def shutdown_scheduler():

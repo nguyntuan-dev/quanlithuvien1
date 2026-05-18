@@ -64,14 +64,14 @@ class DocGiaValidator:
     def require_active(self, ma_doc_gia: str) -> DocGia:
         doc_gia = self.db.query(DocGia).filter(DocGia.ma_doc_gia == ma_doc_gia).first()
         if not doc_gia:
-            raise HTTPException(400, "Khong tim thay doc gia")
+            raise HTTPException(400, "Không tìm thấy độc giả")
         if doc_gia.trang_thai_the != TrangThaiThe.CON_HIEU_LUC:
-            raise HTTPException(400, "The doc gia khong con hieu luc hoac dang bi khoa")
+            raise HTTPException(400, "Thẻ độc giả không còn hiệu lực hoặc đang bị khóa")
         if doc_gia.the_thu_vien:
             if doc_gia.the_thu_vien.trang_thai != TrangThaiThe.CON_HIEU_LUC:
-                raise HTTPException(400, "The thu vien khong con hieu luc hoac dang bi khoa")
+                raise HTTPException(400, "Thẻ thư viện không còn hiệu lực hoặc đang bị khóa")
             if doc_gia.the_thu_vien.ngay_het_han < date.today():
-                raise HTTPException(400, "The thu vien da het han")
+                raise HTTPException(400, "Thẻ thư viện đã hết hạn")
         return doc_gia
 
     def current_borrowed_quantity(self, ma_doc_gia: str) -> int:
@@ -95,16 +95,16 @@ class TaiLieuValidator:
 
     def validate_requested_items(self, chi_tiet, ma_doc_gia: str) -> tuple[dict[str, TaiLieu], dict[str, int]]:
         if not chi_tiet:
-            raise HTTPException(400, "Danh sach tai lieu muon khong duoc de trong")
+            raise HTTPException(400, "Danh sách tài liệu mượn không được để trống")
 
         requested: dict[str, int] = {}
         for item in chi_tiet:
             ma_tai_lieu = (item.ma_tai_lieu or "").strip()
             so_luong = int(item.so_luong or 0)
             if not ma_tai_lieu:
-                raise HTTPException(400, "Ma tai lieu la bat buoc")
+                raise HTTPException(400, "Mã tài liệu là bắt buộc")
             if so_luong <= 0:
-                raise HTTPException(400, f"So luong muon cua tai lieu {ma_tai_lieu} phai lon hon 0")
+                raise HTTPException(400, f"Số lượng mượn của tài liệu {ma_tai_lieu} phải lớn hơn 0")
             requested[ma_tai_lieu] = requested.get(ma_tai_lieu, 0) + so_luong
 
         titles = self.db.query(TaiLieu).filter(TaiLieu.ma_tai_lieu.in_(requested.keys())).all()
@@ -113,9 +113,9 @@ class TaiLieuValidator:
         for ma_tai_lieu, so_luong in requested.items():
             title = title_by_id.get(ma_tai_lieu)
             if not title:
-                raise HTTPException(400, f"Tai lieu {ma_tai_lieu} khong ton tai")
+                raise HTTPException(400, f"Tài liệu {ma_tai_lieu} không tồn tại")
             if int(title.so_luong or 0) < so_luong:
-                raise HTTPException(400, f"Tai lieu '{title.ten_tai_lieu}' khong du so luong (con {title.so_luong})")
+                raise HTTPException(400, f"Tài liệu '{title.ten_tai_lieu}' không đủ số lượng (còn {title.so_luong})")
             self._validate_reservation_hold(title, so_luong, ma_doc_gia)
 
         return title_by_id, requested
@@ -130,7 +130,7 @@ class TaiLieuValidator:
         if free_stock < requested_qty:
             raise HTTPException(
                 400,
-                f"Tai lieu '{title.ten_tai_lieu}' dang duoc giu cho doc gia dat truoc khac",
+                f"Tài liệu '{title.ten_tai_lieu}' đang được giữ cho độc giả đặt trước khác",
             )
 
 
@@ -140,7 +140,7 @@ class PhieuMuonValidator:
 
     def validate_due_date(self, han_tra: date) -> None:
         if han_tra < date.today():
-            raise HTTPException(400, "Han tra khong duoc nho hon ngay hien tai")
+            raise HTTPException(400, "Hạn trả không được nhỏ hơn ngày hiện tại")
 
     def require_returnable(self, ma_phieu_muon: str) -> PhieuMuon:
         phieu_muon = self.db.query(PhieuMuon).options(
@@ -148,29 +148,29 @@ class PhieuMuonValidator:
             joinedload(PhieuMuon.doc_gia),
         ).filter(PhieuMuon.ma_phieu_muon == ma_phieu_muon).first()
         if not phieu_muon:
-            raise HTTPException(404, "Khong tim thay phieu muon")
+            raise HTTPException(404, "Không tìm thấy phiếu mượn")
         if phieu_muon.trang_thai == TrangThaiPhieu.DA_TRA:
-            raise HTTPException(400, "Phieu nay da duoc tra roi")
+            raise HTTPException(400, "Phiếu này đã được trả rồi")
         if phieu_muon.trang_thai not in (
             TrangThaiPhieu.DANG_MUON,
             TrangThaiPhieu.CHO_TRA,
             TrangThaiPhieu.QUA_HAN,
         ):
-            raise HTTPException(400, "Trang thai phieu muon khong hop le de tra sach")
+            raise HTTPException(400, "Trạng thái phiếu mượn không hợp lệ để trả sách")
         if phieu_muon.han_tra < date.today() and phieu_muon.trang_thai == TrangThaiPhieu.DANG_MUON:
             phieu_muon.trang_thai = TrangThaiPhieu.QUA_HAN
         return phieu_muon
 
     def require_extendable(self, phieu_muon: PhieuMuon) -> None:
         if phieu_muon.trang_thai not in (TrangThaiPhieu.DANG_MUON, TrangThaiPhieu.QUA_HAN):
-            raise HTTPException(400, "Chi gia han phieu dang muon hoac qua han")
+            raise HTTPException(400, "Chỉ gia hạn phiếu đang mượn hoặc quá hạn")
         for item in phieu_muon.chi_tiet:
             exists = self.db.query(DatTruoc).filter(
                 DatTruoc.ma_tai_lieu == item.ma_tai_lieu,
                 DatTruoc.trang_thai.in_(["cho_xu_ly", "da_duyet"]),
             ).first()
             if exists:
-                raise HTTPException(400, f"Tai lieu {item.ma_tai_lieu} dang co dat truoc, khong the gia han")
+                raise HTTPException(400, f"Tài liệu {item.ma_tai_lieu} đang có đặt trước, không thể gia hạn")
 
 
 class MuonTraValidator:
@@ -191,7 +191,7 @@ class MuonTraValidator:
         if current_qty + requested_qty > max_books:
             raise HTTPException(
                 400,
-                f"Doc gia chi duoc muon toi da {max_books} cuon; hien dang muon {current_qty}, yeu cau them {requested_qty}",
+                f"Độc giả chỉ được mượn tối đa {max_books} cuốn; hiện đang mượn {current_qty}, yêu cầu thêm {requested_qty}",
             )
 
         return BorrowValidationResult(
@@ -210,10 +210,10 @@ class MuonTraValidator:
             for item in phieu_muon.chi_tiet:
                 title = item.tai_lieu
                 if not title:
-                    raise HTTPException(400, f"Tai lieu {item.ma_tai_lieu} khong ton tai")
+                    raise HTTPException(400, f"Tài liệu {item.ma_tai_lieu} không tồn tại")
                 damage_fine += Decimal(title.gia or 0) * Decimal(item.so_luong or 1)
             if damage_fine <= 0:
-                raise HTTPException(400, "Chua co gia sach de tinh phat mat/hong")
+                raise HTTPException(400, "Chưa có giá sách để tính phạt mất/hỏng")
 
         return ReturnValidationResult(
             phieu_muon=phieu_muon,

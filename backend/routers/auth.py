@@ -113,7 +113,7 @@ def send_otp(req: SendOtpRequest, db: Session = Depends(get_db)):
         OTP_CODES.pop(req.email, None)
         raise HTTPException(
             status_code=503,
-            detail="Khong the gui ma OTP luc nay. Vui long thu lai sau.",
+            detail="Không thể gửi mã OTP lúc này. Vui lòng thử lại sau.",
         )
     
     return {"message": "Đã gửi mã xác thực đến email của bạn."}

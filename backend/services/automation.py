@@ -127,13 +127,13 @@ def process_reservation_queue(db: Session, ma_tai_lieu: str) -> int:
             title_name = reservation.tai_lieu.ten_tai_lieu if reservation.tai_lieu else ma_tai_lieu
             send_safe_email(
                 reservation.doc_gia.email,
-                "Dat truoc da co sach",
+                "Đặt trước đã có sách",
                 f"""
-                <h2>Dat truoc da co sach</h2>
-                <p>Chao {reservation.doc_gia.ho_ten},</p>
-                <p>Tai lieu <strong>{title_name}</strong> da san sang.</p>
-                <p>Vui long den thu vien trong {hold_days} ngay de nhan sach.</p>
-                <p>Tran trong,<br/><strong>{LIBRARY_NAME}</strong></p>
+                <h2>Đặt trước đã có sách</h2>
+                <p>Chào {reservation.doc_gia.ho_ten},</p>
+                <p>Tài liệu <strong>{title_name}</strong> đã sẵn sàng.</p>
+                <p>Vui lòng đến thư viện trong {hold_days} ngày để nhận sách.</p>
+                <p>Trân trọng,<br/><strong>{LIBRARY_NAME}</strong></p>
                 """,
             )
     return approved
@@ -228,13 +228,12 @@ def job_calculate_daily_fine():
         for item in items:
             days = max((today - item.han_tra).days, 0)
             amount = Decimal(days * per_day)
-            reason = f"Qua han tra sach ({days} ngay)"
+            reason = f"Quá hạn trả sách ({days} ngày)"
             fine = db.query(ViPhamPhat).filter(
                 ViPhamPhat.ma_phieu_muon == item.ma_phieu_muon,
                 or_(
                     ViPhamPhat.ly_do_phat.like("Qua han tra sach%"),
                     ViPhamPhat.ly_do_phat.like("Quá hạn trả sách%"),
-                    ViPhamPhat.ly_do_phat.like("QuĂ¡ háº¡n tráº£ sĂ¡ch%"),
                 ),
             ).first()
             if fine:
@@ -255,14 +254,14 @@ def job_calculate_daily_fine():
             if should_notify and item.doc_gia and item.doc_gia.email:
                 if send_safe_email(
                     item.doc_gia.email,
-                    "Thong bao phat qua han sach",
+                    "Thông báo phạt quá hạn sách",
                     f"""
-                    <h2>Thong bao vi pham qua han</h2>
-                    <p>Chao {item.doc_gia.ho_ten},</p>
-                    <p>Ban da qua han tra sach <strong>{days} ngay</strong>.</p>
-                    <p>So tien phat hien tai: <strong>{amount:,.0f} VND</strong></p>
-                    <p>Vui long tra sach va thanh toan som.</p>
-                    <p>Tran trong,<br/><strong>{LIBRARY_NAME}</strong></p>
+                    <h2>Thông báo vi phạm quá hạn</h2>
+                    <p>Chào {item.doc_gia.ho_ten},</p>
+                    <p>Bạn đã quá hạn trả sách <strong>{days} ngày</strong>.</p>
+                    <p>Số tiền phạt hiện tại: <strong>{amount:,.0f} VND</strong></p>
+                    <p>Vui lòng trả sách và thanh toán sớm.</p>
+                    <p>Trân trọng,<br/><strong>{LIBRARY_NAME}</strong></p>
                     """,
                 ):
                     notified += 1
@@ -298,13 +297,13 @@ def job_send_overdue_notifications():
             if item.doc_gia and item.doc_gia.email:
                 if send_safe_email(
                     item.doc_gia.email,
-                    "Thong bao han tra sach",
+                    "Thông báo hạn trả sách",
                     f"""
-                    <h2>Thong bao han tra sach</h2>
-                    <p>Chao {item.doc_gia.ho_ten},</p>
-                    <p>Sach ban muon sap den han tra vao ngay <strong>{item.han_tra}</strong>.</p>
-                    <p>Vui long tra sach dung han de tranh bi phat.</p>
-                    <p>Tran trong,<br/><strong>{LIBRARY_NAME}</strong></p>
+                    <h2>Thông báo hạn trả sách</h2>
+                    <p>Chào {item.doc_gia.ho_ten},</p>
+                    <p>Sách bạn mượn sắp đến hạn trả vào ngày <strong>{item.han_tra}</strong>.</p>
+                    <p>Vui lòng trả sách đúng hạn để tránh bị phạt.</p>
+                    <p>Trân trọng,<br/><strong>{LIBRARY_NAME}</strong></p>
                     """,
                 ):
                     sent += 1
@@ -349,8 +348,8 @@ def job_lock_card_on_violation():
                 write_system_audit(db, "tu_dong_khoa_the", "doc_gia", reader.ma_doc_gia)
                 send_safe_email(
                     reader.email,
-                    "The thu vien bi khoa",
-                    f"<h2>The thu vien bi khoa</h2><p>Chao {reader.ho_ten}, the cua ban da bi khoa do vi pham chua thanh toan.</p>",
+                    "Thẻ thư viện bị khóa",
+                    f"<h2>Thẻ thư viện bị khóa</h2><p>Chào {reader.ho_ten}, thẻ của bạn đã bị khóa do vi phạm chưa thanh toán.</p>",
                 )
         db.commit()
         print(f"[OK] Locked {len(items)} reader cards if needed")
@@ -446,9 +445,9 @@ def job_send_daily_operations_report():
           <li>Muon moi: <strong>{report['muon_moi']}</strong></li>
           <li>Tra hom nay: <strong>{report['tra_hom_nay']}</strong></li>
           <li>Cho duyet tra: <strong>{report['cho_duyet_tra']}</strong></li>
-          <li>Qua han: <strong>{report['qua_han']}</strong></li>
+          <li>Quá hạn: <strong>{report['qua_han']}</strong></li>
           <li>Dat truoc cho xu ly: <strong>{report['dat_truoc_cho_xu_ly']}</strong></li>
-          <li>Tien phat chua thu: <strong>{report['tong_tien_phat_chua_thu']:,.0f} VND</strong></li>
+          <li>Tiền phạt chưa thu: <strong>{report['tong_tien_phat_chua_thu']:,.0f} VND</strong></li>
         </ul>
         """
         sent = 0

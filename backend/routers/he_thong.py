@@ -23,18 +23,19 @@ from services.automation import generate_operations_report, run_automation_once
 router = APIRouter()
 
 DEFAULT_SETTINGS = {
-    "so_sach_toi_da": ("5", "So sach toi da mot doc gia duoc muon"),
-    "so_ngay_gia_han": ("7", "So ngay cong them khi gia han"),
-    "tien_phat_qua_han_moi_ngay": ("10000", "Tien phat qua han moi ngay"),
-    "chinh_sach_mat_hong": ("Theo gia sach", "Cach tinh phat sach mat/hong"),
-    "vietqr_ngan_hang": ("MB", "Ma ngan hang VietQR"),
-    "vietqr_so_tai_khoan": ("0355692135", "So tai khoan nhan tien phat"),
-    "vietqr_ten_tai_khoan": ("THU VIEN", "Ten chu tai khoan nhan tien phat"),
-    "vietqr_mau_qr": ("compact2", "Mau anh VietQR"),
-    "so_ngay_giu_dat_truoc": ("3", "So ngay giu sach sau khi tu dong duyet dat truoc"),
-    "nguong_khoa_the_qua_han": ("30", "So ngay qua han truoc khi tu dong khoa the"),
-    "nguong_khoa_the_tien_phat": ("100000", "Tong tien phat chua thu de tu dong khoa the"),
-    "email_bao_cao_thu_thu": ("", "Email nhan bao cao cuoi ngay, cach nhau bang dau phay"),
+    "so_sach_toi_da": ("5", "Số sách tối đa một độc giả được mượn"),
+    "so_ngay_gia_han": ("7", "Số ngày cộng thêm khi gia hạn"),
+    "tien_phat_qua_han_moi_ngay": ("10000", "Tiền phạt quá hạn mỗi ngày"),
+    "chinh_sach_mat_hong": ("Theo giá sách", "Cách tính phạt sách mất/hỏng"),
+    "vietqr_ngan_hang": ("MB", "Mã ngân hàng VietQR"),
+    "vietqr_so_tai_khoan": ("0355692135", "Số tài khoản nhận tiền phạt"),
+    "vietqr_ten_tai_khoan": ("THU VIEN", "Tên chủ tài khoản nhận tiền phạt"),
+    "vietqr_mau_qr": ("compact2", "Mẫu ảnh VietQR"),
+    "vietqr_webhook_token": ("", "Token bảo mật webhook xác nhận thanh toán VietQR"),
+    "so_ngay_giu_dat_truoc": ("3", "Số ngày giữ sách sau khi tự động duyệt đặt trước"),
+    "nguong_khoa_the_qua_han": ("30", "Số ngày quá hạn trước khi tự động khóa thẻ"),
+    "nguong_khoa_the_tien_phat": ("100000", "Tổng tiền phạt chưa thu để tự động khóa thẻ"),
+    "email_bao_cao_thu_thu": ("", "Email nhận báo cáo cuối ngày, cách nhau bằng dấu phẩy"),
 }
 
 
@@ -141,10 +142,10 @@ def backup(db: Session = Depends(get_db), current: NhanVien = Depends(require_ad
 @router.post("/restore")
 def restore(payload: Dict[str, Any], db: Session = Depends(get_db), current: NhanVien = Depends(require_admin)):
     if not isinstance(payload, dict):
-        raise HTTPException(400, "Du lieu phuc hoi khong hop le")
-    write_audit(db, "restore", "database", "json", current, "Da nhan du lieu restore")
+        raise HTTPException(400, "Dữ liệu phục hồi không hợp lệ")
+    write_audit(db, "restore", "database", "json", current, "Đã nhận dữ liệu restore")
     db.commit()
     return {
-        "message": "Da ghi nhan yeu cau phuc hoi. Hay kiem tra backup truoc khi ghi de du lieu that.",
+        "message": "Đã ghi nhận yêu cầu phục hồi. Hãy kiểm tra backup trước khi ghi đè dữ liệu thật.",
         "tables": list(payload.keys()),
     }

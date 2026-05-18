@@ -1,16 +1,37 @@
 # backend/routers/vi_pham.py
-from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy.orm import Session, joinedload
-from typing import List, Optional
-from database import get_db
-from models import ViPhamPhat, PhieuMuon, DocGia, ChiTietPhieuMuon, TrangThaiPhat, CauHinhHeThong
-from schemas import ViPhamCreate, ViPhamOut, VietQRThanhToanOut
-import uuid
 from datetime import datetime
-import unicodedata
+from decimal import Decimal, InvalidOperation
 import os
+import re
+from typing import Any, Dict, List, Optional
+import unicodedata
 from urllib.parse import urlencode
-from services.automation import BROKEN_BOOK_COEFFICIENT, LOST_BOOK_COEFFICIENT, unlock_reader_card_if_paid
+import uuid
+
+from fastapi import APIRouter, Depends, Header, HTTPException
+from sqlalchemy.orm import Session, joinedload
+
+from database import get_db
+from models import (
+    AuditLog,
+    CauHinhHeThong,
+    ChiTietPhieuMuon,
+    PhieuMuon,
+    TrangThaiPhat,
+    ViPhamPhat,
+)
+from schemas import (
+    GiaoDichThanhToanOut,
+    ThanhToanPhatStatusOut,
+    ViPhamCreate,
+    ViPhamOut,
+    VietQRThanhToanOut,
+)
+from services.automation import (
+    BROKEN_BOOK_COEFFICIENT,
+    LOST_BOOK_COEFFICIENT,
+    unlock_reader_card_if_paid,
+)
 
 router = APIRouter(prefix="/vi-pham", tags=["ViPham"])
 
@@ -18,32 +39,33 @@ DEFAULT_VIETQR_BANK = "MB"
 DEFAULT_VIETQR_ACCOUNT_NO = "0355692135"
 DEFAULT_VIETQR_ACCOUNT_NAME = "THU VIEN"
 DEFAULT_VIETQR_TEMPLATE = "compact2"
+FINE_CODE_RE = re.compile(r"\bVP-[A-Z0-9-]{3,30}\b", re.IGNORECASE)
 
-# -------------------
-# Helpers
-# -------------------
 
 def normalize_text(value: str) -> str:
     value = unicodedata.normalize("NFD", value or "")
     value = "".join(ch for ch in value if unicodedata.category(ch) != "Mn")
     return value.lower()
 
+
 def should_use_book_price(reason: str) -> bool:
     reason = normalize_text(reason)
     return "mat" in reason or "hong" in reason or "rach" in reason
+
 
 def fine_by_borrowed_book_price(pm: PhieuMuon, coefficient: float = 1.0) -> int:
     total = 0
     for ct in pm.chi_tiet:
         if ct.tai_lieu:
-            # Tính tiền theo giá sách * hệ số * số lượng
             total += int(float(ct.tai_lieu.gia or 0) * coefficient) * int(ct.so_luong or 1)
     return total
+
 
 def get_setting(db: Session, key: str, env_key: str, default: str = "") -> str:
     row = db.query(CauHinhHeThong).filter(CauHinhHeThong.khoa == key).first()
     value = row.gia_tri if row and str(row.gia_tri).strip() else os.getenv(env_key, default)
     return str(value or "").strip()
+
 
 def build_vietqr_url(bank: str, account_no: str, template: str, amount: int, info: str, account_name: str) -> str:
     params = urlencode({
@@ -53,19 +75,125 @@ def build_vietqr_url(bank: str, account_no: str, template: str, amount: int, inf
     })
     return f"https://img.vietqr.io/image/{bank}-{account_no}-{template}.png?{params}"
 
-# -------------------
-# GET danh sách vi phạm
-# -------------------
+
+def flatten_payload(payload: Dict[str, Any]) -> Dict[str, Any]:
+    flat = {}
+    stack = [payload]
+    while stack:
+        current = stack.pop()
+        if not isinstance(current, dict):
+            continue
+        for key, value in current.items():
+            flat[str(key)] = value
+            if isinstance(value, dict):
+                stack.append(value)
+    return flat
+
+
+def extract_payment_content(flat: Dict[str, Any]) -> str:
+    content_keys = (
+        "ma_phat",
+        "description",
+        "content",
+        "transferContent",
+        "addInfo",
+        "remark",
+        "transaction_content",
+        "noi_dung",
+    )
+    parts = [str(flat.get(key) or "") for key in content_keys]
+    return " ".join(part for part in parts if part).strip()
+
+
+def extract_fine_code(content: str) -> Optional[str]:
+    match = FINE_CODE_RE.search(content or "")
+    return match.group(0).upper() if match else None
+
+
+def parse_amount(value: Any) -> Optional[Decimal]:
+    if value is None:
+        return None
+    if isinstance(value, (int, float, Decimal)):
+        return Decimal(str(value))
+    text = str(value).strip()
+    if not text:
+        return None
+    cleaned = re.sub(r"[^\d,.\-]", "", text)
+    if "," in cleaned and "." in cleaned:
+        cleaned = cleaned.replace(".", "").replace(",", ".")
+    elif "." in cleaned and len(cleaned.rsplit(".", 1)[-1]) == 3:
+        cleaned = cleaned.replace(".", "")
+    elif "," in cleaned:
+        if len(cleaned.rsplit(",", 1)[-1]) == 3:
+            cleaned = cleaned.replace(",", "")
+        else:
+            cleaned = cleaned.replace(",", ".")
+    try:
+        return Decimal(cleaned)
+    except (InvalidOperation, ValueError):
+        return None
+
+
+def extract_payment_amount(flat: Dict[str, Any]) -> Optional[Decimal]:
+    amount_keys = (
+        "amount",
+        "transferAmount",
+        "creditAmount",
+        "money",
+        "value",
+        "so_tien",
+        "gia_tri",
+    )
+    for key in amount_keys:
+        amount = parse_amount(flat.get(key))
+        if amount is not None:
+            return amount
+    return None
+
+
+def is_incoming_payment(flat: Dict[str, Any]) -> bool:
+    text = " ".join(
+        str(flat.get(key) or "")
+        for key in ("type", "transactionType", "direction", "status", "payment_status")
+    ).lower()
+    if any(word in text for word in ("out", "debit", "withdraw", "chi", "failed", "cancel")):
+        return False
+    return True
+
+
+def fix_empty_book_codes(vp: ViPhamPhat) -> None:
+    if not vp.phieu_muon:
+        return
+    for ct in vp.phieu_muon.chi_tiet:
+        if ct.ma_tai_lieu is None:
+            ct.ma_tai_lieu = ""
+
+
+def mark_fine_paid(db: Session, vp: ViPhamPhat, actor: str, detail: str = "") -> bool:
+    if vp.trang_thai_thanh_toan == TrangThaiPhat.DA_THANH_TOAN:
+        return False
+    vp.trang_thai_thanh_toan = TrangThaiPhat.DA_THANH_TOAN
+    vp.ngay_thanh_toan = datetime.now()
+    unlock_reader_card_if_paid(db, vp.phieu_muon.doc_gia if vp.phieu_muon else None)
+    db.add(AuditLog(
+        hanh_dong="xac_nhan_thanh_toan_phat",
+        doi_tuong="vi_pham_phat",
+        ma_doi_tuong=vp.ma_phat,
+        nguoi_thuc_hien=actor,
+        chi_tiet=detail,
+    ))
+    return True
+
 
 @router.get("/", response_model=List[ViPhamOut])
 def danh_sach(
     trang_thai: Optional[str] = None,
     ma_doc_gia: Optional[str] = None,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
 ):
     q = db.query(ViPhamPhat).join(ViPhamPhat.phieu_muon).options(
         joinedload(ViPhamPhat.phieu_muon).joinedload(PhieuMuon.doc_gia),
-        joinedload(ViPhamPhat.phieu_muon).joinedload(PhieuMuon.chi_tiet).joinedload(ChiTietPhieuMuon.tai_lieu)
+        joinedload(ViPhamPhat.phieu_muon).joinedload(PhieuMuon.chi_tiet).joinedload(ChiTietPhieuMuon.tai_lieu),
     )
     if trang_thai:
         q = q.filter(ViPhamPhat.trang_thai_thanh_toan == trang_thai)
@@ -73,17 +201,10 @@ def danh_sach(
         q = q.filter(PhieuMuon.ma_doc_gia == ma_doc_gia)
 
     results = q.order_by(ViPhamPhat.ngay_phat.desc()).all()
-
-    # Fix None -> empty string cho ma_tai_lieu để tránh ResponseValidationError
     for vp in results:
-        for ct in vp.phieu_muon.chi_tiet:
-            if ct.ma_tai_lieu is None:
-                ct.ma_tai_lieu = ""
+        fix_empty_book_codes(vp)
     return results
 
-# -------------------
-# POST tạo vi phạm mới
-# -------------------
 
 @router.post("/", response_model=ViPhamOut, status_code=201)
 def tao_vi_pham(req: ViPhamCreate, db: Session = Depends(get_db)):
@@ -95,7 +216,7 @@ def tao_vi_pham(req: ViPhamCreate, db: Session = Depends(get_db)):
 
     reason_norm = normalize_text(req.ly_do_phat)
     is_book_loss_or_damage = "mat" in reason_norm or "hong" in reason_norm or "rach" in reason_norm
-    
+
     if "mat" in reason_norm:
         so_tien = fine_by_borrowed_book_price(pm, LOST_BOOK_COEFFICIENT)
     elif "hong" in reason_norm or "rach" in reason_norm:
@@ -112,19 +233,19 @@ def tao_vi_pham(req: ViPhamCreate, db: Session = Depends(get_db)):
         ly_do_phat=req.ly_do_phat,
         so_tien=so_tien,
         ma_phieu_muon=req.ma_phieu_muon,
-        trang_thai_thanh_toan=TrangThaiPhat.CHUA_THANH_TOAN
+        trang_thai_thanh_toan=TrangThaiPhat.CHUA_THANH_TOAN,
     )
 
     db.add(vp)
     db.commit()
     db.refresh(vp)
 
-    # Fix None -> empty string cho ma_tai_lieu trước khi trả về
     for ct in pm.chi_tiet:
         if ct.ma_tai_lieu is None:
             ct.ma_tai_lieu = ""
 
     return vp
+
 
 @router.get("/{ma}/vietqr", response_model=VietQRThanhToanOut)
 def lay_vietqr(ma: str, db: Session = Depends(get_db)):
@@ -159,9 +280,91 @@ def lay_vietqr(ma: str, db: Session = Depends(get_db)):
         ten_tai_khoan=account_name,
     )
 
-# -------------------
-# PUT thanh toán vi phạm
-# -------------------
+
+@router.get("/{ma}/thanh-toan/status", response_model=ThanhToanPhatStatusOut)
+def trang_thai_thanh_toan(ma: str, db: Session = Depends(get_db)):
+    vp = db.query(ViPhamPhat).filter(ViPhamPhat.ma_phat == ma).first()
+    if not vp:
+        raise HTTPException(status_code=404, detail="Không tìm thấy vi phạm")
+    return ThanhToanPhatStatusOut(
+        ma_phat=vp.ma_phat,
+        trang_thai_thanh_toan=vp.trang_thai_thanh_toan,
+        ngay_thanh_toan=vp.ngay_thanh_toan,
+    )
+
+
+@router.post("/thanh-toan/webhook", response_model=GiaoDichThanhToanOut)
+def webhook_thanh_toan(
+    payload: Dict[str, Any],
+    db: Session = Depends(get_db),
+    x_webhook_token: Optional[str] = Header(default=None),
+):
+    expected_token = get_setting(db, "vietqr_webhook_token", "VIETQR_WEBHOOK_TOKEN", "")
+    if expected_token and x_webhook_token != expected_token:
+        raise HTTPException(status_code=401, detail="Webhook token không hợp lệ")
+
+    flat = flatten_payload(payload)
+    content = extract_payment_content(flat)
+    ma_phat = extract_fine_code(content)
+    if not ma_phat:
+        return GiaoDichThanhToanOut(
+            matched=False,
+            confirmed=False,
+            message="Không tìm thấy mã phạt trong nội dung giao dịch",
+        )
+
+    vp = db.query(ViPhamPhat).options(
+        joinedload(ViPhamPhat.phieu_muon).joinedload(PhieuMuon.doc_gia),
+        joinedload(ViPhamPhat.phieu_muon).joinedload(PhieuMuon.chi_tiet),
+    ).filter(ViPhamPhat.ma_phat == ma_phat).first()
+    if not vp:
+        return GiaoDichThanhToanOut(
+            matched=False,
+            confirmed=False,
+            ma_phat=ma_phat,
+            message="Mã phạt không tồn tại",
+        )
+
+    if vp.trang_thai_thanh_toan == TrangThaiPhat.DA_THANH_TOAN:
+        return GiaoDichThanhToanOut(
+            matched=True,
+            confirmed=True,
+            ma_phat=vp.ma_phat,
+            message="Vi phạm đã được xác nhận thanh toán trước đó",
+        )
+
+    if not is_incoming_payment(flat):
+        return GiaoDichThanhToanOut(
+            matched=True,
+            confirmed=False,
+            ma_phat=vp.ma_phat,
+            message="Giao dịch không phải tiền vào",
+        )
+
+    amount = extract_payment_amount(flat)
+    required_amount = Decimal(vp.so_tien or 0)
+    if amount is None or amount < required_amount:
+        return GiaoDichThanhToanOut(
+            matched=True,
+            confirmed=False,
+            ma_phat=vp.ma_phat,
+            message="Số tiền giao dịch chưa đủ để thanh toán phạt",
+        )
+
+    mark_fine_paid(
+        db,
+        vp,
+        "webhook",
+        f"amount={amount}; required={required_amount}; content={content[:180]}",
+    )
+    db.commit()
+    return GiaoDichThanhToanOut(
+        matched=True,
+        confirmed=True,
+        ma_phat=vp.ma_phat,
+        message="Đã tự động xác nhận thanh toán phạt",
+    )
+
 
 @router.put("/{ma}/thanh-toan", response_model=ViPhamOut)
 def thanh_toan(ma: str, db: Session = Depends(get_db)):
@@ -172,15 +375,9 @@ def thanh_toan(ma: str, db: Session = Depends(get_db)):
     if not vp:
         raise HTTPException(status_code=404, detail="Không tìm thấy vi phạm")
 
-    vp.trang_thai_thanh_toan = TrangThaiPhat.DA_THANH_TOAN
-    vp.ngay_thanh_toan = datetime.now()
-    unlock_reader_card_if_paid(db, vp.phieu_muon.doc_gia if vp.phieu_muon else None)
+    mark_fine_paid(db, vp, "staff", "manual confirmation")
     db.commit()
     db.refresh(vp)
-
-    # Fix None -> empty string cho ma_tai_lieu trước khi trả về
-    for ct in vp.phieu_muon.chi_tiet:
-        if ct.ma_tai_lieu is None:
-            ct.ma_tai_lieu = ""
+    fix_empty_book_codes(vp)
 
     return vp

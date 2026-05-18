@@ -101,9 +101,9 @@ def get_reservation_info(ma: str, db: Session = Depends(get_db)):
         joinedload(DatTruoc.tai_lieu),
     ).filter(DatTruoc.ma_dat_truoc == ma).first()
     if not reservation:
-        raise HTTPException(404, "Khong tim thay ma dat truoc")
+        raise HTTPException(404, "Không tìm thấy mã đặt trước")
     if reservation.trang_thai == "da_nhan_sach":
-        raise HTTPException(400, "Ma dat truoc nay da duoc nhan sach roi")
+        raise HTTPException(400, "Mã đặt trước này đã được nhận sách rồi")
     return {
         "ma_doc_gia": reservation.ma_doc_gia,
         "ho_ten": reservation.doc_gia.ho_ten if reservation.doc_gia else "N/A",
@@ -118,7 +118,7 @@ def get_reservation_info(ma: str, db: Session = Depends(get_db)):
 def chi_tiet(ma: str, db: Session = Depends(get_db)):
     phieu = load_phieu(db, ma)
     if not phieu:
-        raise HTTPException(404, "Khong tim thay phieu muon")
+        raise HTTPException(404, "Không tìm thấy phiếu mượn")
     return phieu
 
 
@@ -126,7 +126,7 @@ def chi_tiet(ma: str, db: Session = Depends(get_db)):
 def gia_han(ma: str, db: Session = Depends(get_db)):
     phieu = load_phieu(db, ma)
     if not phieu:
-        raise HTTPException(404, "Khong tim thay phieu muon")
+        raise HTTPException(404, "Không tìm thấy phiếu mượn")
     days = MuonTraValidator(db).validate_extension(phieu)
     phieu.han_tra = phieu.han_tra + timedelta(days=days)
     if phieu.han_tra >= date.today():
@@ -176,7 +176,7 @@ def lap_phieu_muon(req: PhieuMuonCreate, db: Session = Depends(get_db)):
 def yeu_cau_tra(ma: str, db: Session = Depends(get_db)):
     phieu = load_phieu(db, ma)
     if not phieu:
-        raise HTTPException(404, "Khong tim thay phieu muon")
+        raise HTTPException(404, "Không tìm thấy phiếu mượn")
     if phieu.trang_thai not in (TrangThaiPhieu.DANG_MUON, TrangThaiPhieu.QUA_HAN):
         raise HTTPException(400, "Chi co the yeu cau tra phieu dang muon")
     if phieu.han_tra < date.today():
@@ -216,7 +216,7 @@ def tra_sach(req: TraSachRequest, db: Session = Depends(get_db)):
         label = "Mat sach" if validation.condition_type == "lost" else "Sach rach/hong"
         db.add(ViPhamPhat(
             ma_phat="VP-" + uuid.uuid4().hex[:8].upper(),
-            ly_do_phat=f"{label} - tinh theo gia sach",
+            ly_do_phat=f"{label} - tính theo giá sách",
             so_tien=validation.damage_fine,
             ma_phieu_muon=phieu.ma_phieu_muon,
         ))

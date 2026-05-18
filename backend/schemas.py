@@ -214,6 +214,17 @@ class VietQRThanhToanOut(BaseModel):
     so_tai_khoan: str
     ten_tai_khoan: str
 
+class ThanhToanPhatStatusOut(BaseModel):
+    ma_phat: str
+    trang_thai_thanh_toan: TrangThaiPhat
+    ngay_thanh_toan: Optional[datetime]
+
+class GiaoDichThanhToanOut(BaseModel):
+    matched: bool
+    confirmed: bool
+    ma_phat: Optional[str] = None
+    message: str
+
 # ── Nhân viên ─────────────────────────────────────────────────────────────────
 class NhanVienCreate(BaseModel):
     ho_ten: str

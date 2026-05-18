@@ -3,7 +3,7 @@ import toast from 'react-hot-toast'
 import { muonTraApi, viPhamApi, datTruocApi } from '../services/api'
 import { PageHeader, Field, Input, Badge, Spinner, Empty, Modal } from '../components/UI'
 import { useAuth } from '../hooks/useAuth'
-import { AlertCircle, Copy, QrCode, RotateCcw, Search, Undo2, X } from 'lucide-react'
+import { AlertCircle, CheckCircle, Copy, QrCode, RotateCcw, Search, Undo2, X } from 'lucide-react'
 
 const ACTIVE_STATUSES = new Set(['DANG_MUON', 'QUA_HAN'])
 
@@ -52,6 +52,7 @@ export default function LichSuPage() {
   const [qrModal, setQrModal] = useState(false)
   const [qrInfo, setQrInfo] = useState(null)
   const [qrLoading, setQrLoading] = useState(false)
+  const [qrChecking, setQrChecking] = useState(false)
 
   const activeLoans = useMemo(
     () => items.filter(pm => ACTIVE_STATUSES.has(pm.trang_thai)).length,
@@ -164,6 +165,7 @@ export default function LichSuPage() {
     setQrModal(true)
     setQrInfo(null)
     setQrLoading(true)
+    setQrChecking(false)
     try {
       const { data } = await viPhamApi.vietqr(ma)
       setQrInfo(data)
@@ -177,6 +179,35 @@ export default function LichSuPage() {
     await navigator.clipboard.writeText(qrInfo.noi_dung)
     toast.success('Đã sao chép nội dung chuyển khoản')
   }
+
+  useEffect(() => {
+    if (!qrModal || !qrInfo?.ma_phat) return undefined
+
+    let stopped = false
+    const checkPayment = async () => {
+      setQrChecking(true)
+      try {
+        const { data } = await viPhamApi.thanhToanStatus(qrInfo.ma_phat)
+        if (!stopped && data.trang_thai_thanh_toan?.toUpperCase() === 'DA_THANH_TOAN') {
+          toast.success('Hệ thống đã tự động xác nhận thanh toán')
+          setQrModal(false)
+          setQrInfo(null)
+          await load()
+        }
+      } catch (err) {
+        // Polling is best effort; the global interceptor reports real API errors.
+      } finally {
+        if (!stopped) setQrChecking(false)
+      }
+    }
+
+    checkPayment()
+    const timer = window.setInterval(checkPayment, 5000)
+    return () => {
+      stopped = true
+      window.clearInterval(timer)
+    }
+  }, [qrModal, qrInfo?.ma_phat])
 
   const getReservationBadge = (status) => {
     switch (status) {
@@ -404,6 +435,10 @@ export default function LichSuPage() {
                 <span className="font-medium">{qrInfo.ten_tai_khoan}</span>
                 <span className="text-ink-muted">Nội dung</span>
                 <span className="font-mono">{qrInfo.noi_dung}</span>
+              </div>
+              <div className="flex items-center gap-2 text-xs text-ink-muted">
+                {qrChecking ? <Spinner /> : <CheckCircle size={14} />}
+                <span>Đang tự động kiểm tra thanh toán</span>
               </div>
               <button className="btn btn-secondary" onClick={copyPaymentContent}>
                 <Copy size={15} /> Sao chép nội dung
