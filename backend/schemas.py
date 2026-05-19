@@ -213,6 +213,9 @@ class VietQRThanhToanOut(BaseModel):
     ngan_hang: str
     so_tai_khoan: str
     ten_tai_khoan: str
+    provider: Optional[str] = "vietqr"
+    checkout_url: Optional[str] = None
+    order_code: Optional[int] = None
 
 class ThanhToanPhatStatusOut(BaseModel):
     ma_phat: str

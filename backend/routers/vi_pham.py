@@ -1,12 +1,18 @@
 # backend/routers/vi_pham.py
 from datetime import datetime
 from decimal import Decimal, InvalidOperation
+import hashlib
+import hmac
+import json
 import os
 import re
 from typing import Any, Dict, List, Optional
 import unicodedata
+from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode
+from urllib.request import Request, urlopen
 import uuid
+import zlib
 
 from fastapi import APIRouter, Depends, Header, HTTPException
 from sqlalchemy.orm import Session, joinedload
@@ -39,6 +45,7 @@ DEFAULT_VIETQR_BANK = "MB"
 DEFAULT_VIETQR_ACCOUNT_NO = "0355692135"
 DEFAULT_VIETQR_ACCOUNT_NAME = "THU VIEN"
 DEFAULT_VIETQR_TEMPLATE = "compact2"
+PAYOS_API_URL = "https://api-merchant.payos.vn/v2/payment-requests"
 FINE_CODE_RE = re.compile(r"\bVP-[A-Z0-9-]{3,30}\b", re.IGNORECASE)
 
 
@@ -76,6 +83,104 @@ def build_vietqr_url(bank: str, account_no: str, template: str, amount: int, inf
     return f"https://img.vietqr.io/image/{bank}-{account_no}-{template}.png?{params}"
 
 
+def fine_order_code(ma_phat: str) -> int:
+    return zlib.crc32((ma_phat or "").encode("utf-8")) & 0x7FFFFFFF
+
+
+def payos_signature(data: Dict[str, Any], checksum_key: str) -> str:
+    raw = "&".join(f"{key}={data[key]}" for key in sorted(data))
+    return hmac.new(checksum_key.encode("utf-8"), raw.encode("utf-8"), hashlib.sha256).hexdigest()
+
+
+def verify_payos_webhook_signature(db: Session, payload: Dict[str, Any]) -> bool:
+    checksum_key = get_setting(db, "payos_checksum_key", "PAYOS_CHECKSUM_KEY", "")
+    data = payload.get("data")
+    signature = payload.get("signature")
+    if not checksum_key or not isinstance(data, dict) or not signature:
+        return False
+    expected = payos_signature(data, checksum_key)
+    return hmac.compare_digest(str(signature), expected)
+
+
+def payos_qr_image_url(qr_code: str) -> str:
+    return "https://api.qrserver.com/v1/create-qr-code/?" + urlencode({
+        "size": "260x260",
+        "data": qr_code,
+    })
+
+
+def call_payos(method: str, url: str, client_id: str, api_key: str, payload: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    data = json.dumps(payload).encode("utf-8") if payload is not None else None
+    req = Request(
+        url,
+        data=data,
+        headers={
+            "Content-Type": "application/json",
+            "x-client-id": client_id,
+            "x-api-key": api_key,
+        },
+        method=method,
+    )
+    try:
+        with urlopen(req, timeout=15) as response:
+            return json.loads(response.read().decode("utf-8"))
+    except HTTPError as exc:
+        body = exc.read().decode("utf-8", errors="ignore")
+        try:
+            return json.loads(body)
+        except json.JSONDecodeError:
+            raise HTTPException(status_code=400, detail=body or str(exc)) from exc
+    except URLError as exc:
+        raise HTTPException(status_code=400, detail=f"Không kết nối được PayOS: {exc.reason}") from exc
+
+
+def create_payos_payment_link(db: Session, vp: ViPhamPhat, amount: int, info: str) -> Optional[Dict[str, Any]]:
+    client_id = get_setting(db, "payos_client_id", "PAYOS_CLIENT_ID", "")
+    api_key = get_setting(db, "payos_api_key", "PAYOS_API_KEY", "")
+    checksum_key = get_setting(db, "payos_checksum_key", "PAYOS_CHECKSUM_KEY", "")
+    if not client_id or not api_key or not checksum_key:
+        return None
+
+    base_url = get_setting(db, "payos_return_url", "PAYOS_RETURN_URL", "https://quanlithuvien1-production.up.railway.app")
+    order_code = fine_order_code(vp.ma_phat)
+    description = f"PHAT{order_code % 100000}"
+    existing = call_payos("GET", f"{PAYOS_API_URL}/{order_code}", client_id, api_key)
+    if existing.get("code") == "00" and existing.get("data"):
+        data = existing["data"]
+        if str(data.get("status") or "").upper() == "PAID":
+            mark_fine_paid(db, vp, "payos", f"orderCode={order_code}; status=PAID")
+            db.commit()
+        data["orderCode"] = order_code
+        data["description"] = data.get("description") or description
+        data["noi_dung"] = info
+        return data
+
+    signed_data = {
+        "amount": amount,
+        "cancelUrl": base_url,
+        "description": description,
+        "orderCode": order_code,
+        "returnUrl": base_url,
+    }
+    payload = {
+        **signed_data,
+        "items": [{
+            "name": f"Tiền phạt {vp.ma_phat}",
+            "quantity": 1,
+            "price": amount,
+        }],
+        "signature": payos_signature(signed_data, checksum_key),
+    }
+    result = call_payos("POST", PAYOS_API_URL, client_id, api_key, payload)
+    if result.get("code") != "00":
+        raise HTTPException(status_code=400, detail=result.get("desc") or "Không tạo được link thanh toán PayOS")
+    data = result.get("data") or {}
+    data["orderCode"] = order_code
+    data["description"] = description
+    data["noi_dung"] = info
+    return data
+
+
 def flatten_payload(payload: Dict[str, Any]) -> Dict[str, Any]:
     flat = {}
     stack = [payload]
@@ -108,6 +213,21 @@ def extract_payment_content(flat: Dict[str, Any]) -> str:
 def extract_fine_code(content: str) -> Optional[str]:
     match = FINE_CODE_RE.search(content or "")
     return match.group(0).upper() if match else None
+
+
+def find_fine_by_order_code(db: Session, order_code: Any) -> Optional[ViPhamPhat]:
+    try:
+        expected = int(order_code)
+    except (TypeError, ValueError):
+        return None
+    fines = db.query(ViPhamPhat).options(
+        joinedload(ViPhamPhat.phieu_muon).joinedload(PhieuMuon.doc_gia),
+        joinedload(ViPhamPhat.phieu_muon).joinedload(PhieuMuon.chi_tiet),
+    ).filter(ViPhamPhat.trang_thai_thanh_toan == TrangThaiPhat.CHUA_THANH_TOAN).all()
+    for fine in fines:
+        if fine_order_code(fine.ma_phat) == expected:
+            return fine
+    return None
 
 
 def parse_amount(value: Any) -> Optional[Decimal]:
@@ -270,6 +390,22 @@ def lay_vietqr(ma: str, db: Session = Depends(get_db)):
         raise HTTPException(status_code=400, detail="Số tiền phạt không hợp lệ")
 
     info = f"THANH TOAN PHAT {vp.ma_phat}"
+    payos_data = create_payos_payment_link(db, vp, amount, info)
+    if payos_data:
+        qr_code = str(payos_data.get("qrCode") or "")
+        return VietQRThanhToanOut(
+            ma_phat=vp.ma_phat,
+            so_tien=amount,
+            noi_dung=payos_data.get("description") or info,
+            qr_url=payos_qr_image_url(qr_code) if qr_code else build_vietqr_url(bank, account_no, template, amount, info, account_name),
+            ngan_hang=str(payos_data.get("bin") or bank),
+            so_tai_khoan=str(payos_data.get("accountNumber") or account_no),
+            ten_tai_khoan=str(payos_data.get("accountName") or account_name),
+            provider="payos",
+            checkout_url=payos_data.get("checkoutUrl"),
+            order_code=payos_data.get("orderCode"),
+        )
+
     return VietQRThanhToanOut(
         ma_phat=vp.ma_phat,
         so_tien=amount,
@@ -278,6 +414,7 @@ def lay_vietqr(ma: str, db: Session = Depends(get_db)):
         ngan_hang=bank,
         so_tai_khoan=account_no,
         ten_tai_khoan=account_name,
+        provider="vietqr",
     )
 
 
@@ -300,23 +437,38 @@ def webhook_thanh_toan(
     x_webhook_token: Optional[str] = Header(default=None),
 ):
     expected_token = get_setting(db, "vietqr_webhook_token", "VIETQR_WEBHOOK_TOKEN", "")
-    if expected_token and x_webhook_token != expected_token:
+    payos_signature_ok = verify_payos_webhook_signature(db, payload)
+    if expected_token and x_webhook_token != expected_token and not payos_signature_ok:
         raise HTTPException(status_code=401, detail="Webhook token không hợp lệ")
+
+    if payload.get("success") is False or payload.get("code") not in (None, "00"):
+        return GiaoDichThanhToanOut(
+            matched=False,
+            confirmed=False,
+            message=payload.get("desc") or "Giao dịch không thành công",
+        )
 
     flat = flatten_payload(payload)
     content = extract_payment_content(flat)
     ma_phat = extract_fine_code(content)
+    vp = None
+    if ma_phat:
+        vp = db.query(ViPhamPhat).options(
+            joinedload(ViPhamPhat.phieu_muon).joinedload(PhieuMuon.doc_gia),
+            joinedload(ViPhamPhat.phieu_muon).joinedload(PhieuMuon.chi_tiet),
+        ).filter(ViPhamPhat.ma_phat == ma_phat).first()
+    if not vp:
+        vp = find_fine_by_order_code(db, flat.get("orderCode"))
+        if vp:
+            ma_phat = vp.ma_phat
+
     if not ma_phat:
         return GiaoDichThanhToanOut(
             matched=False,
             confirmed=False,
-            message="Không tìm thấy mã phạt trong nội dung giao dịch",
+            message="Không tìm thấy mã phạt hoặc orderCode trong giao dịch",
         )
 
-    vp = db.query(ViPhamPhat).options(
-        joinedload(ViPhamPhat.phieu_muon).joinedload(PhieuMuon.doc_gia),
-        joinedload(ViPhamPhat.phieu_muon).joinedload(PhieuMuon.chi_tiet),
-    ).filter(ViPhamPhat.ma_phat == ma_phat).first()
     if not vp:
         return GiaoDichThanhToanOut(
             matched=False,

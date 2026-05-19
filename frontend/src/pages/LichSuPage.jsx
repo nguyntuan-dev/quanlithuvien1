@@ -3,7 +3,7 @@ import toast from 'react-hot-toast'
 import { muonTraApi, viPhamApi, datTruocApi } from '../services/api'
 import { PageHeader, Field, Input, Badge, Spinner, Empty, Modal } from '../components/UI'
 import { useAuth } from '../hooks/useAuth'
-import { AlertCircle, CheckCircle, Copy, QrCode, RotateCcw, Search, Undo2, X } from 'lucide-react'
+import { AlertCircle, CheckCircle, Copy, ExternalLink, QrCode, RotateCcw, Search, Undo2, X } from 'lucide-react'
 
 const ACTIVE_STATUSES = new Set(['DANG_MUON', 'QUA_HAN'])
 
@@ -204,6 +204,12 @@ export default function LichSuPage() {
     if (!qrInfo?.noi_dung) return
     await navigator.clipboard.writeText(qrInfo.noi_dung)
     toast.success('Đã sao chép nội dung chuyển khoản')
+  }
+
+  const openCheckout = () => {
+    if (qrInfo?.checkout_url) {
+      window.open(qrInfo.checkout_url, '_blank', 'noopener,noreferrer')
+    }
   }
 
   useEffect(() => {
@@ -437,7 +443,7 @@ export default function LichSuPage() {
       <Modal
         open={qrModal}
         onClose={() => setQrModal(false)}
-        title="Thanh toán tiền phạt bằng VietQR"
+        title={qrInfo?.provider === 'payos' ? 'Thanh toán tiền phạt bằng PayOS' : 'Thanh toán tiền phạt bằng VietQR'}
         size="md"
       >
         {qrLoading ? <Spinner /> : qrInfo && (
@@ -453,6 +459,8 @@ export default function LichSuPage() {
                 </div>
               </div>
               <div className="grid grid-cols-[120px_1fr] gap-y-2">
+                <span className="text-ink-muted">Cổng</span>
+                <span className="font-medium">{qrInfo.provider === 'payos' ? 'PayOS' : 'VietQR'}</span>
                 <span className="text-ink-muted">Ngân hàng</span>
                 <span className="font-medium">{qrInfo.ngan_hang}</span>
                 <span className="text-ink-muted">Số tài khoản</span>
@@ -461,6 +469,12 @@ export default function LichSuPage() {
                 <span className="font-medium">{qrInfo.ten_tai_khoan}</span>
                 <span className="text-ink-muted">Nội dung</span>
                 <span className="font-mono">{qrInfo.noi_dung}</span>
+                {qrInfo.order_code && (
+                  <>
+                    <span className="text-ink-muted">Order code</span>
+                    <span className="font-mono">{qrInfo.order_code}</span>
+                  </>
+                )}
               </div>
               <div className="flex items-center gap-2 text-xs text-ink-muted">
                 {qrChecking ? <Spinner /> : <CheckCircle size={14} />}
@@ -469,6 +483,11 @@ export default function LichSuPage() {
               <button className="btn btn-secondary" onClick={copyPaymentContent}>
                 <Copy size={15} /> Sao chép nội dung
               </button>
+              {qrInfo.checkout_url && (
+                <button className="btn btn-primary" onClick={openCheckout}>
+                  <ExternalLink size={15} /> Mở trang thanh toán PayOS
+                </button>
+              )}
             </div>
           </div>
         )}

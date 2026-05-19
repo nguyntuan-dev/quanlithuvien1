@@ -58,7 +58,8 @@ def startup_event():
                   ('vietqr_webhook_token', '', 'Token bảo mật webhook xác nhận thanh toán VietQR'),
                   ('payos_client_id', '', 'PayOS Client ID'),
                   ('payos_api_key', '', 'PayOS API Key'),
-                  ('payos_checksum_key', '', 'PayOS Checksum Key')
+                  ('payos_checksum_key', '', 'PayOS Checksum Key'),
+                  ('payos_return_url', 'https://quanlithuvien1-production.up.railway.app', 'URL quay lại sau khi thanh toán PayOS')
                 ON CONFLICT (khoa) DO NOTHING
             """))
             conn.execute(text("""
