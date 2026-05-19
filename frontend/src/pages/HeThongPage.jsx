@@ -5,6 +5,10 @@ import { Empty, Field, Input, PageHeader, Spinner } from '../components/UI'
 
 const money = (value) => Number(value || 0).toLocaleString('vi-VN')
 
+function isSecretSetting(key) {
+  return key.includes('token') || key.includes('key') || key.includes('secret')
+}
+
 export default function HeThongPage() {
   const [settings, setSettings] = useState([])
   const [logs, setLogs] = useState([])
@@ -12,6 +16,7 @@ export default function HeThongPage() {
   const [backup, setBackup] = useState('')
   const [loading, setLoading] = useState(true)
   const [running, setRunning] = useState(false)
+  const [savingKey, setSavingKey] = useState(null)
   const [automationResult, setAutomationResult] = useState(null)
 
   const load = async () => {
@@ -32,10 +37,24 @@ export default function HeThongPage() {
 
   useEffect(() => { load() }, [])
 
-  const update = async (row, value) => {
-    await heThongApi.updateCauHinh(row.khoa, { gia_tri: value, mo_ta: row.mo_ta })
-    toast.success('Đã cập nhật cấu hình')
-    load()
+  const changeSetting = (key, value) => {
+    setSettings(rows => rows.map(row => (
+      row.khoa === key ? { ...row, gia_tri: value } : row
+    )))
+  }
+
+  const update = async (row) => {
+    setSavingKey(row.khoa)
+    try {
+      const { data } = await heThongApi.updateCauHinh(row.khoa, {
+        gia_tri: row.gia_tri ?? '',
+        mo_ta: row.mo_ta,
+      })
+      setSettings(rows => rows.map(item => (item.khoa === data.khoa ? data : item)))
+      toast.success('Đã cập nhật cấu hình')
+    } finally {
+      setSavingKey(null)
+    }
   }
 
   const runAutomation = async () => {
@@ -57,7 +76,10 @@ export default function HeThongPage() {
   }
 
   const restore = async () => {
-    if (!backup.trim()) { toast.error('Chưa có JSON để phục hồi'); return }
+    if (!backup.trim()) {
+      toast.error('Chưa có JSON để phục hồi')
+      return
+    }
     await heThongApi.restore(JSON.parse(backup))
     toast.success('Đã gửi dữ liệu phục hồi')
     load()
@@ -180,10 +202,16 @@ export default function HeThongPage() {
           {loading ? <Spinner /> : settings.map(row => (
             <div key={row.khoa} className="grid grid-cols-[220px_1fr_120px] gap-3 items-end mb-3">
               <Field label={row.khoa}>
-                <Input defaultValue={row.gia_tri} onBlur={e => update(row, e.target.value)} />
+                <Input
+                  type={isSecretSetting(row.khoa) ? 'password' : 'text'}
+                  value={row.gia_tri || ''}
+                  onChange={e => changeSetting(row.khoa, e.target.value)}
+                />
               </Field>
               <div className="text-sm text-ink-muted pb-2">{row.mo_ta}</div>
-              <button className="btn btn-secondary" onClick={() => update(row, row.gia_tri)}>Lưu</button>
+              <button className="btn btn-secondary" onClick={() => update(row)} disabled={savingKey === row.khoa}>
+                {savingKey === row.khoa ? 'Đang lưu...' : 'Lưu'}
+              </button>
             </div>
           ))}
         </div>
