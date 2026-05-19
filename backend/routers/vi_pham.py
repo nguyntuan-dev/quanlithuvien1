@@ -9,7 +9,7 @@ import re
 from typing import Any, Dict, List, Optional
 import unicodedata
 from urllib.error import HTTPError, URLError
-from urllib.parse import urlencode
+from urllib.parse import urlencode, urlparse
 from urllib.request import Request, urlopen
 import uuid
 import zlib
@@ -87,6 +87,11 @@ def fine_order_code(ma_phat: str) -> int:
     return zlib.crc32((ma_phat or "").encode("utf-8")) & 0x7FFFFFFF
 
 
+def valid_https_url(value: str) -> bool:
+    parsed = urlparse(value or "")
+    return parsed.scheme == "https" and bool(parsed.netloc)
+
+
 def payos_signature(data: Dict[str, Any], checksum_key: str) -> str:
     raw = "&".join(f"{key}={data[key]}" for key in sorted(data))
     return hmac.new(checksum_key.encode("utf-8"), raw.encode("utf-8"), hashlib.sha256).hexdigest()
@@ -141,9 +146,12 @@ def create_payos_payment_link(db: Session, vp: ViPhamPhat, amount: int, info: st
     if not client_id or not api_key or not checksum_key:
         return None
 
-    base_url = get_setting(db, "payos_return_url", "PAYOS_RETURN_URL", "https://quanlithuvien1-production.up.railway.app")
+    return_url = get_setting(db, "payos_return_url", "PAYOS_RETURN_URL", "https://quanlithuvien.live/lich-su")
+    cancel_url = get_setting(db, "payos_cancel_url", "PAYOS_CANCEL_URL", return_url)
+    if not valid_https_url(return_url) or not valid_https_url(cancel_url):
+        raise HTTPException(status_code=400, detail="PayOS returnUrl/cancelUrl phải là URL https hợp lệ")
     order_code = fine_order_code(vp.ma_phat)
-    description = f"PHAT{order_code % 100000}"
+    description = f"PHAT {vp.ma_phat.replace('VP-', '')}"[:25]
     existing = call_payos("GET", f"{PAYOS_API_URL}/{order_code}", client_id, api_key)
     if existing.get("code") == "00" and existing.get("data"):
         data = existing["data"]
@@ -157,10 +165,10 @@ def create_payos_payment_link(db: Session, vp: ViPhamPhat, amount: int, info: st
 
     signed_data = {
         "amount": amount,
-        "cancelUrl": base_url,
+        "cancelUrl": cancel_url,
         "description": description,
         "orderCode": order_code,
-        "returnUrl": base_url,
+        "returnUrl": return_url,
     }
     payload = {
         **signed_data,

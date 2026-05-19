@@ -35,14 +35,13 @@ DEFAULT_SETTINGS = {
     "payos_client_id": ("", "PayOS Client ID"),
     "payos_api_key": ("", "PayOS API Key"),
     "payos_checksum_key": ("", "PayOS Checksum Key"),
-    "payos_return_url": ("https://quanlithuvien1-production.up.railway.app", "URL quay lại sau khi thanh toán PayOS"),
+    "payos_return_url": ("https://quanlithuvien.live/lich-su", "URL quay lại sau khi thanh toán PayOS"),
+    "payos_cancel_url": ("https://quanlithuvien.live/lich-su", "URL quay lại khi hủy thanh toán PayOS"),
     "so_ngay_giu_dat_truoc": ("3", "Số ngày giữ sách sau khi tự động duyệt đặt trước"),
     "nguong_khoa_the_qua_han": ("30", "Số ngày quá hạn trước khi tự động khóa thẻ"),
     "nguong_khoa_the_tien_phat": ("100000", "Tổng tiền phạt chưa thu để tự động khóa thẻ"),
     "email_bao_cao_thu_thu": ("", "Email nhận báo cáo cuối ngày, cách nhau bằng dấu phẩy"),
 }
-
-
 def ensure_defaults(db: Session):
     rows = [
         {"khoa": key, "gia_tri": value, "mo_ta": desc}
