@@ -216,6 +216,7 @@ class VietQRThanhToanOut(BaseModel):
     provider: Optional[str] = "vietqr"
     checkout_url: Optional[str] = None
     order_code: Optional[int] = None
+    warning: Optional[str] = None
 
 class ThanhToanPhatStatusOut(BaseModel):
     ma_phat: str

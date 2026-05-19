@@ -390,7 +390,12 @@ def lay_vietqr(ma: str, db: Session = Depends(get_db)):
         raise HTTPException(status_code=400, detail="Số tiền phạt không hợp lệ")
 
     info = f"THANH TOAN PHAT {vp.ma_phat}"
-    payos_data = create_payos_payment_link(db, vp, amount, info)
+    payos_warning = None
+    try:
+        payos_data = create_payos_payment_link(db, vp, amount, info)
+    except HTTPException as exc:
+        payos_data = None
+        payos_warning = f"PayOS lỗi: {exc.detail}. Đang dùng VietQR tạm thời."
     if payos_data:
         qr_code = str(payos_data.get("qrCode") or "")
         return VietQRThanhToanOut(
@@ -415,6 +420,7 @@ def lay_vietqr(ma: str, db: Session = Depends(get_db)):
         so_tai_khoan=account_no,
         ten_tai_khoan=account_name,
         provider="vietqr",
+        warning=payos_warning,
     )
 
 

@@ -195,6 +195,10 @@ export default function LichSuPage() {
     try {
       const { data } = await viPhamApi.vietqr(ma)
       setQrInfo(data)
+      if (data.warning) toast.error(data.warning)
+    } catch (err) {
+      setQrModal(false)
+      setQrInfo(null)
     } finally {
       setQrLoading(false)
     }
@@ -476,6 +480,11 @@ export default function LichSuPage() {
                   </>
                 )}
               </div>
+              {qrInfo.warning && (
+                <div className="rounded border border-warning/30 bg-warning/10 px-3 py-2 text-xs text-warning">
+                  {qrInfo.warning}
+                </div>
+              )}
               <div className="flex items-center gap-2 text-xs text-ink-muted">
                 {qrChecking ? <Spinner /> : <CheckCircle size={14} />}
                 <span>Đang tự động kiểm tra thanh toán</span>
