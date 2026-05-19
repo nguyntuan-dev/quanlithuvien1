@@ -137,6 +137,7 @@ def call_payos(method: str, url: str, client_id: str, api_key: str, payload: Opt
             "Content-Type": "application/json",
             "x-client-id": client_id,
             "x-api-key": api_key,
+            "User-Agent": "Mozilla/5.0 (compatible; QuanLiThuVien/1.0)",
         },
         method=method,
     )
