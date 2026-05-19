@@ -136,7 +136,7 @@ def call_payos(method: str, url: str, client_id: str, api_key: str, payload: Opt
         except json.JSONDecodeError:
             raise HTTPException(status_code=400, detail=body or str(exc)) from exc
     except URLError as exc:
-        raise HTTPException(status_code=400, detail=f"Không kết nối được PayOS: {exc.reason}") from exc
+        raise HTTPException(status_code=400, detail=f"KhĂ„â€Ă‚Â´ng kÄ‚Â¡Ă‚ÂºĂ‚Â¿t nÄ‚Â¡Ă‚Â»Ă¢â‚¬Ëœi Ä‚â€Ă¢â‚¬ËœÄ‚â€ Ă‚Â°Ä‚Â¡Ă‚Â»Ă‚Â£c PayOS: {exc.reason}") from exc
 
 
 def create_payos_payment_link(db: Session, vp: ViPhamPhat, amount: int, info: str) -> Optional[Dict[str, Any]]:
@@ -149,7 +149,7 @@ def create_payos_payment_link(db: Session, vp: ViPhamPhat, amount: int, info: st
     return_url = get_setting(db, "payos_return_url", "PAYOS_RETURN_URL", "https://quanlithuvien.live/lich-su")
     cancel_url = get_setting(db, "payos_cancel_url", "PAYOS_CANCEL_URL", return_url)
     if not valid_https_url(return_url) or not valid_https_url(cancel_url):
-        raise HTTPException(status_code=400, detail="PayOS returnUrl/cancelUrl phải là URL https hợp lệ")
+        raise HTTPException(status_code=400, detail="PayOS returnUrl/cancelUrl phÄ‚Â¡Ă‚ÂºĂ‚Â£i lĂ„â€Ă‚Â  URL https hÄ‚Â¡Ă‚Â»Ă‚Â£p lÄ‚Â¡Ă‚Â»Ă¢â‚¬Â¡")
     order_code = fine_order_code(vp.ma_phat)
     description = f"PHAT {vp.ma_phat.replace('VP-', '')}"[:25]
     existing = call_payos("GET", f"{PAYOS_API_URL}/{order_code}", client_id, api_key)
@@ -173,7 +173,7 @@ def create_payos_payment_link(db: Session, vp: ViPhamPhat, amount: int, info: st
     payload = {
         **signed_data,
         "items": [{
-            "name": f"Tiền phạt {vp.ma_phat}",
+            "name": f"Tien phat {vp.ma_phat}",
             "quantity": 1,
             "price": amount,
         }],
@@ -181,7 +181,7 @@ def create_payos_payment_link(db: Session, vp: ViPhamPhat, amount: int, info: st
     }
     result = call_payos("POST", PAYOS_API_URL, client_id, api_key, payload)
     if result.get("code") != "00":
-        raise HTTPException(status_code=400, detail=result.get("desc") or "Không tạo được link thanh toán PayOS")
+        raise HTTPException(status_code=400, detail=f"PayOS code={result.get('code')}; desc={result.get('desc')}; data={result.get('data')}")
     data = result.get("data") or {}
     data["orderCode"] = order_code
     data["description"] = description
@@ -340,7 +340,7 @@ def tao_vi_pham(req: ViPhamCreate, db: Session = Depends(get_db)):
         joinedload(PhieuMuon.chi_tiet).joinedload(ChiTietPhieuMuon.tai_lieu)
     ).filter(PhieuMuon.ma_phieu_muon == req.ma_phieu_muon).first()
     if not pm:
-        raise HTTPException(status_code=404, detail="Không tìm thấy phiếu mượn")
+        raise HTTPException(status_code=404, detail="KhĂ„â€Ă‚Â´ng tĂ„â€Ă‚Â¬m thÄ‚Â¡Ă‚ÂºĂ‚Â¥y phiÄ‚Â¡Ă‚ÂºĂ‚Â¿u mÄ‚â€ Ă‚Â°Ä‚Â¡Ă‚Â»Ă‚Â£n")
 
     reason_norm = normalize_text(req.ly_do_phat)
     is_book_loss_or_damage = "mat" in reason_norm or "hong" in reason_norm or "rach" in reason_norm
@@ -353,7 +353,7 @@ def tao_vi_pham(req: ViPhamCreate, db: Session = Depends(get_db)):
         so_tien = req.so_tien
 
     if is_book_loss_or_damage and so_tien <= 0:
-        raise HTTPException(status_code=400, detail="Chưa có giá sách để tính phạt mất/hỏng")
+        raise HTTPException(status_code=400, detail="ChÄ‚â€ Ă‚Â°a cĂ„â€Ă‚Â³ giĂ„â€Ă‚Â¡ sĂ„â€Ă‚Â¡ch Ä‚â€Ă¢â‚¬ËœÄ‚Â¡Ă‚Â»Ă†â€™ tĂ„â€Ă‚Â­nh phÄ‚Â¡Ă‚ÂºĂ‚Â¡t mÄ‚Â¡Ă‚ÂºĂ‚Â¥t/hÄ‚Â¡Ă‚Â»Ă‚Âng")
 
     ma = "VP-" + uuid.uuid4().hex[:8].upper()
     vp = ViPhamPhat(
@@ -379,56 +379,31 @@ def tao_vi_pham(req: ViPhamCreate, db: Session = Depends(get_db)):
 def lay_vietqr(ma: str, db: Session = Depends(get_db)):
     vp = db.query(ViPhamPhat).filter(ViPhamPhat.ma_phat == ma).first()
     if not vp:
-        raise HTTPException(status_code=404, detail="Không tìm thấy vi phạm")
+        raise HTTPException(status_code=404, detail="KhĂ„â€Ă‚Â´ng tĂ„â€Ă‚Â¬m thÄ‚Â¡Ă‚ÂºĂ‚Â¥y vi phÄ‚Â¡Ă‚ÂºĂ‚Â¡m")
     if vp.trang_thai_thanh_toan == TrangThaiPhat.DA_THANH_TOAN:
-        raise HTTPException(status_code=400, detail="Vi phạm này đã thanh toán")
-
-    bank = get_setting(db, "vietqr_ngan_hang", "VIETQR_BANK", DEFAULT_VIETQR_BANK)
-    account_no = get_setting(db, "vietqr_so_tai_khoan", "VIETQR_ACCOUNT_NO", DEFAULT_VIETQR_ACCOUNT_NO)
-    account_name = get_setting(db, "vietqr_ten_tai_khoan", "VIETQR_ACCOUNT_NAME", DEFAULT_VIETQR_ACCOUNT_NAME)
-    template = get_setting(db, "vietqr_mau_qr", "VIETQR_TEMPLATE", DEFAULT_VIETQR_TEMPLATE)
-    if not bank or not account_no:
-        raise HTTPException(
-            status_code=400,
-            detail="Chưa cấu hình ngân hàng hoặc số tài khoản VietQR trong Hệ thống",
-        )
+        raise HTTPException(status_code=400, detail="Vi phÄ‚Â¡Ă‚ÂºĂ‚Â¡m nĂ„â€Ă‚Â y Ä‚â€Ă¢â‚¬ËœĂ„â€Ă‚Â£ thanh toĂ„â€Ă‚Â¡n")
 
     amount = int(float(vp.so_tien or 0))
     if amount <= 0:
-        raise HTTPException(status_code=400, detail="Số tiền phạt không hợp lệ")
+        raise HTTPException(status_code=400, detail="SĂ¡Â»â€˜ tiĂ¡Â»Ân phĂ¡ÂºÂ¡t khÄ‚Â´ng hĂ¡Â»Â£p lĂ¡Â»â€¡")
 
     info = f"THANH TOAN PHAT {vp.ma_phat}"
-    payos_warning = None
-    try:
-        payos_data = create_payos_payment_link(db, vp, amount, info)
-    except HTTPException as exc:
-        payos_data = None
-        payos_warning = f"PayOS lỗi: {exc.detail}. Đang dùng VietQR tạm thời."
-    if payos_data:
-        qr_code = str(payos_data.get("qrCode") or "")
-        return VietQRThanhToanOut(
-            ma_phat=vp.ma_phat,
-            so_tien=amount,
-            noi_dung=payos_data.get("description") or info,
-            qr_url=payos_qr_image_url(qr_code) if qr_code else build_vietqr_url(bank, account_no, template, amount, info, account_name),
-            ngan_hang=str(payos_data.get("bin") or bank),
-            so_tai_khoan=str(payos_data.get("accountNumber") or account_no),
-            ten_tai_khoan=str(payos_data.get("accountName") or account_name),
-            provider="payos",
-            checkout_url=payos_data.get("checkoutUrl"),
-            order_code=payos_data.get("orderCode"),
-        )
+    payos_data = create_payos_payment_link(db, vp, amount, info)
+    if not payos_data:
+        raise HTTPException(status_code=400, detail="ChĂ†Â°a cĂ¡ÂºÂ¥u hÄ‚Â¬nh Ă„â€˜Ă¡Â»Â§ PayOS Client ID, API Key vÄ‚Â  Checksum Key")
 
+    qr_code = str(payos_data.get("qrCode") or "")
     return VietQRThanhToanOut(
         ma_phat=vp.ma_phat,
         so_tien=amount,
-        noi_dung=info,
-        qr_url=build_vietqr_url(bank, account_no, template, amount, info, account_name),
-        ngan_hang=bank,
-        so_tai_khoan=account_no,
-        ten_tai_khoan=account_name,
-        provider="vietqr",
-        warning=payos_warning,
+        noi_dung=payos_data.get("description") or info,
+        qr_url=payos_qr_image_url(qr_code) if qr_code else "",
+        ngan_hang=str(payos_data.get("bin") or ""),
+        so_tai_khoan=str(payos_data.get("accountNumber") or ""),
+        ten_tai_khoan=str(payos_data.get("accountName") or ""),
+        provider="payos",
+        checkout_url=payos_data.get("checkoutUrl"),
+        order_code=payos_data.get("orderCode"),
     )
 
 
@@ -436,7 +411,7 @@ def lay_vietqr(ma: str, db: Session = Depends(get_db)):
 def trang_thai_thanh_toan(ma: str, db: Session = Depends(get_db)):
     vp = db.query(ViPhamPhat).filter(ViPhamPhat.ma_phat == ma).first()
     if not vp:
-        raise HTTPException(status_code=404, detail="Không tìm thấy vi phạm")
+        raise HTTPException(status_code=404, detail="KhĂ„â€Ă‚Â´ng tĂ„â€Ă‚Â¬m thÄ‚Â¡Ă‚ÂºĂ‚Â¥y vi phÄ‚Â¡Ă‚ÂºĂ‚Â¡m")
     return ThanhToanPhatStatusOut(
         ma_phat=vp.ma_phat,
         trang_thai_thanh_toan=vp.trang_thai_thanh_toan,
@@ -453,13 +428,13 @@ def webhook_thanh_toan(
     expected_token = get_setting(db, "vietqr_webhook_token", "VIETQR_WEBHOOK_TOKEN", "")
     payos_signature_ok = verify_payos_webhook_signature(db, payload)
     if expected_token and x_webhook_token != expected_token and not payos_signature_ok:
-        raise HTTPException(status_code=401, detail="Webhook token không hợp lệ")
+        raise HTTPException(status_code=401, detail="Webhook token khĂ„â€Ă‚Â´ng hÄ‚Â¡Ă‚Â»Ă‚Â£p lÄ‚Â¡Ă‚Â»Ă¢â‚¬Â¡")
 
     if payload.get("success") is False or payload.get("code") not in (None, "00"):
         return GiaoDichThanhToanOut(
             matched=False,
             confirmed=False,
-            message=payload.get("desc") or "Giao dịch không thành công",
+            message=payload.get("desc") or "Giao dÄ‚Â¡Ă‚Â»Ă¢â‚¬Â¹ch khĂ„â€Ă‚Â´ng thĂ„â€Ă‚Â nh cĂ„â€Ă‚Â´ng",
         )
 
     flat = flatten_payload(payload)
@@ -480,7 +455,7 @@ def webhook_thanh_toan(
         return GiaoDichThanhToanOut(
             matched=False,
             confirmed=False,
-            message="Không tìm thấy mã phạt hoặc orderCode trong giao dịch",
+            message="KhĂ„â€Ă‚Â´ng tĂ„â€Ă‚Â¬m thÄ‚Â¡Ă‚ÂºĂ‚Â¥y mĂ„â€Ă‚Â£ phÄ‚Â¡Ă‚ÂºĂ‚Â¡t hoÄ‚Â¡Ă‚ÂºĂ‚Â·c orderCode trong giao dÄ‚Â¡Ă‚Â»Ă¢â‚¬Â¹ch",
         )
 
     if not vp:
@@ -488,7 +463,7 @@ def webhook_thanh_toan(
             matched=False,
             confirmed=False,
             ma_phat=ma_phat,
-            message="Mã phạt không tồn tại",
+            message="MĂ„â€Ă‚Â£ phÄ‚Â¡Ă‚ÂºĂ‚Â¡t khĂ„â€Ă‚Â´ng tÄ‚Â¡Ă‚Â»Ă¢â‚¬Å“n tÄ‚Â¡Ă‚ÂºĂ‚Â¡i",
         )
 
     if vp.trang_thai_thanh_toan == TrangThaiPhat.DA_THANH_TOAN:
@@ -496,7 +471,7 @@ def webhook_thanh_toan(
             matched=True,
             confirmed=True,
             ma_phat=vp.ma_phat,
-            message="Vi phạm đã được xác nhận thanh toán trước đó",
+            message="Vi phÄ‚Â¡Ă‚ÂºĂ‚Â¡m Ä‚â€Ă¢â‚¬ËœĂ„â€Ă‚Â£ Ä‚â€Ă¢â‚¬ËœÄ‚â€ Ă‚Â°Ä‚Â¡Ă‚Â»Ă‚Â£c xĂ„â€Ă‚Â¡c nhÄ‚Â¡Ă‚ÂºĂ‚Â­n thanh toĂ„â€Ă‚Â¡n trÄ‚â€ Ă‚Â°Ä‚Â¡Ă‚Â»Ă¢â‚¬Âºc Ä‚â€Ă¢â‚¬ËœĂ„â€Ă‚Â³",
         )
 
     if not is_incoming_payment(flat):
@@ -504,7 +479,7 @@ def webhook_thanh_toan(
             matched=True,
             confirmed=False,
             ma_phat=vp.ma_phat,
-            message="Giao dịch không phải tiền vào",
+            message="Giao dÄ‚Â¡Ă‚Â»Ă¢â‚¬Â¹ch khĂ„â€Ă‚Â´ng phÄ‚Â¡Ă‚ÂºĂ‚Â£i tiÄ‚Â¡Ă‚Â»Ă‚Ân vĂ„â€Ă‚Â o",
         )
 
     amount = extract_payment_amount(flat)
@@ -514,7 +489,7 @@ def webhook_thanh_toan(
             matched=True,
             confirmed=False,
             ma_phat=vp.ma_phat,
-            message="Số tiền giao dịch chưa đủ để thanh toán phạt",
+            message="SÄ‚Â¡Ă‚Â»Ă¢â‚¬Ëœ tiÄ‚Â¡Ă‚Â»Ă‚Ân giao dÄ‚Â¡Ă‚Â»Ă¢â‚¬Â¹ch chÄ‚â€ Ă‚Â°a Ä‚â€Ă¢â‚¬ËœÄ‚Â¡Ă‚Â»Ă‚Â§ Ä‚â€Ă¢â‚¬ËœÄ‚Â¡Ă‚Â»Ă†â€™ thanh toĂ„â€Ă‚Â¡n phÄ‚Â¡Ă‚ÂºĂ‚Â¡t",
         )
 
     mark_fine_paid(
@@ -528,7 +503,7 @@ def webhook_thanh_toan(
         matched=True,
         confirmed=True,
         ma_phat=vp.ma_phat,
-        message="Đã tự động xác nhận thanh toán phạt",
+        message="Ä‚â€Ă‚ÂĂ„â€Ă‚Â£ tÄ‚Â¡Ă‚Â»Ă‚Â± Ä‚â€Ă¢â‚¬ËœÄ‚Â¡Ă‚Â»Ă¢â€Â¢ng xĂ„â€Ă‚Â¡c nhÄ‚Â¡Ă‚ÂºĂ‚Â­n thanh toĂ„â€Ă‚Â¡n phÄ‚Â¡Ă‚ÂºĂ‚Â¡t",
     )
 
 
@@ -539,7 +514,7 @@ def thanh_toan(ma: str, db: Session = Depends(get_db)):
         joinedload(ViPhamPhat.phieu_muon).joinedload(PhieuMuon.chi_tiet),
     ).filter(ViPhamPhat.ma_phat == ma).first()
     if not vp:
-        raise HTTPException(status_code=404, detail="Không tìm thấy vi phạm")
+        raise HTTPException(status_code=404, detail="KhĂ„â€Ă‚Â´ng tĂ„â€Ă‚Â¬m thÄ‚Â¡Ă‚ÂºĂ‚Â¥y vi phÄ‚Â¡Ă‚ÂºĂ‚Â¡m")
 
     mark_fine_paid(db, vp, "staff", "manual confirmation")
     db.commit()
