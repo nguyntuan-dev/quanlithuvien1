@@ -66,14 +66,25 @@ def reader_has_unpaid_fines(db: Session, ma_doc_gia: str) -> bool:
     ).first() is not None
 
 
+def reader_card_is_current(reader) -> bool:
+    card = getattr(reader, "the_thu_vien", None)
+    return bool(card and card.ngay_het_han and card.ngay_het_han >= date.today())
+
+
 def unlock_reader_card_if_paid(db: Session, reader) -> bool:
-    if not reader or reader.trang_thai_the != TrangThaiThe.BI_KHOA:
+    if not reader:
+        return False
+    if reader.trang_thai_the != TrangThaiThe.BI_KHOA and (
+        not reader.the_thu_vien or reader.the_thu_vien.trang_thai != TrangThaiThe.BI_KHOA
+    ):
+        return False
+    if not reader_card_is_current(reader):
         return False
     if reader_has_unpaid_fines(db, reader.ma_doc_gia):
         return False
 
     reader.trang_thai_the = TrangThaiThe.CON_HIEU_LUC
-    if reader.the_thu_vien and reader.the_thu_vien.trang_thai == TrangThaiThe.BI_KHOA:
+    if reader.the_thu_vien:
         reader.the_thu_vien.trang_thai = TrangThaiThe.CON_HIEU_LUC
     write_system_audit(db, "tu_dong_mo_khoa_the", "doc_gia", reader.ma_doc_gia)
     return True
