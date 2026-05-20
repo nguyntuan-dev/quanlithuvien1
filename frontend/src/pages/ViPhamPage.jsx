@@ -100,7 +100,7 @@ export default function ViPhamPage() {
         }
       />
 
-      <div className="px-6">
+      <div className="px-4 sm:px-6">
         <div className="card overflow-hidden">
           <table className="w-full">
             <thead className="bg-surface-soft border-b border-border">

@@ -53,7 +53,7 @@ export default function DatTruocPage() {
     <div>
       <PageHeader title="Đặt trước tài liệu" subtitle={`${items.length} lượt đặt`}
         action={<button className="btn btn-primary" onClick={() => setModal(true)}><Plus size={15}/>Tạo đặt trước</button>} />
-      <div className="px-6">
+      <div className="px-4 sm:px-6">
         <div className="card overflow-hidden">
           <table className="w-full">
             <thead className="bg-surface-soft border-b border-border">

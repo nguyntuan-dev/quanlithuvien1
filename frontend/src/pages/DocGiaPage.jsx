@@ -77,7 +77,7 @@ export default function DocGiaPage() {
         subtitle={`${items.length} độc giả`}
         action={<button className="btn btn-primary" onClick={openNew}><Plus size={15}/>Đăng ký mới</button>}
       />
-      <div className="px-6">
+      <div className="px-4 sm:px-6">
         <SearchBar value={q} onChange={setQ} placeholder="Tìm theo tên, mã, email, SĐT..." />
         <div className="card overflow-hidden">
           <table className="w-full">

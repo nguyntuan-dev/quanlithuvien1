@@ -105,13 +105,13 @@ export default function CatalogPage() {
 
   if (isReader) {
     return (
-      <div className="mx-auto max-w-6xl px-6 py-6">
-        <div className="mb-5 flex items-center justify-between gap-4">
+      <div className="mx-auto max-w-6xl px-4 py-5 sm:px-6 sm:py-6">
+        <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
           <div>
             <h1 className="text-lg font-bold tracking-tight">Kho sách</h1>
             <p className="text-xs text-[#8c857b]">Tìm sách, xem chi tiết và đặt chỗ</p>
           </div>
-          <div className="relative w-full max-w-xs">
+          <div className="relative w-full sm:max-w-xs">
             <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#aaa49a]" />
             <input
               className="h-10 w-full border border-[#ece8dc] bg-white pl-9 pr-3 text-xs outline-none transition focus:border-[#d8c981]"
@@ -145,10 +145,29 @@ export default function CatalogPage() {
           </aside>
 
           <section>
+            <div className="mb-5 flex gap-2 overflow-x-auto pb-1 lg:hidden">
+              <button
+                type="button"
+                onClick={() => setCategory('all')}
+                className={`shrink-0 border px-3 py-1.5 text-[11px] font-semibold uppercase ${category === 'all' ? 'border-[#d8c981] bg-[#d8c981] text-white' : 'border-[#ece8dc] bg-white text-[#6f6a63]'}`}
+              >
+                Tat ca ({items.length})
+              </button>
+              {categories.map(([name, count]) => (
+                <button
+                  key={name}
+                  type="button"
+                  onClick={() => setCategory(name)}
+                  className={`shrink-0 border px-3 py-1.5 text-[11px] font-semibold uppercase ${category === name ? 'border-[#d8c981] bg-[#d8c981] text-white' : 'border-[#ece8dc] bg-white text-[#6f6a63]'}`}
+                >
+                  {name} ({count})
+                </button>
+              ))}
+            </div>
             {loading ? <Spinner />
               : visibleItems.length === 0 ? <Empty message="Không tìm thấy sách phù hợp" />
                 : (
-                  <div className="grid grid-cols-2 gap-x-5 gap-y-8 md:grid-cols-3 xl:grid-cols-4">
+                  <div className="keep-mobile-cols grid grid-cols-2 gap-x-4 gap-y-7 sm:gap-x-5 sm:gap-y-8 md:grid-cols-3 xl:grid-cols-4">
                     {visibleItems.map((item, index) => {
                       const available = Number(item.so_luong || 0) > 0
                       const busy = busyId === item.ma_tai_lieu
@@ -222,7 +241,7 @@ export default function CatalogPage() {
   return (
     <div>
       <PageHeader title="Tra cứu sách" subtitle="Tìm theo tên sách, tác giả hoặc chủ đề" />
-      <div className="px-6">
+      <div className="px-4 sm:px-6">
         <SearchBar value={q} onChange={setQ} placeholder="Tên sách, tác giả, chủ đề..." />
         <div className="card overflow-hidden">
           <table className="w-full">

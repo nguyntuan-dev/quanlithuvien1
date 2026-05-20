@@ -40,7 +40,7 @@ export default function NhanVienPage() {
     <div>
       <PageHeader title="Quản lý nhân viên" subtitle={`${items.length} nhân viên`}
         action={<button className="btn btn-primary" onClick={() => setModal(true)}><Plus size={15}/>Thêm nhân viên</button>} />
-      <div className="px-6">
+      <div className="px-4 sm:px-6">
         <div className="card overflow-hidden">
           <table className="w-full">
             <thead className="bg-surface-soft border-b border-border">

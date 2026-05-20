@@ -4,16 +4,16 @@ export function Modal({ open, onClose, title, children, footer, size = 'md' }) {
   if (!open) return null
   const w = { sm:'max-w-sm', md:'max-w-lg', lg:'max-w-2xl', xl:'max-w-4xl' }[size]
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-50 flex items-end justify-center p-2 sm:items-center sm:p-4">
       <div className="absolute inset-0 bg-black/40" onClick={onClose} />
-      <div className={`relative w-full ${w} max-h-[90vh] bg-surface rounded-2xl shadow-dialog flex flex-col`}>
-        <div className="flex items-center justify-between px-6 py-4 border-b border-border shrink-0">
+      <div className={`relative w-full ${w} max-h-[94vh] bg-surface rounded-xl shadow-dialog flex flex-col sm:max-h-[90vh] sm:rounded-2xl`}>
+        <div className="flex items-center justify-between gap-3 px-4 py-3 border-b border-border shrink-0 sm:px-6 sm:py-4">
           <h2 className="text-base font-semibold">{title}</h2>
           <button onClick={onClose} className="btn btn-ghost p-1"><X size={16}/></button>
         </div>
-        <div className="p-6 overflow-y-auto flex-1">{children}</div>
+        <div className="p-4 overflow-y-auto flex-1 sm:p-6">{children}</div>
         {footer && (
-          <div className="px-6 py-4 border-t border-border shrink-0 bg-surface rounded-b-2xl">
+          <div className="px-4 py-3 border-t border-border shrink-0 bg-surface rounded-b-xl sm:px-6 sm:py-4 sm:rounded-b-2xl">
             {footer}
           </div>
         )}
@@ -24,12 +24,12 @@ export function Modal({ open, onClose, title, children, footer, size = 'md' }) {
 
 export function PageHeader({ title, subtitle, action }) {
   return (
-    <div className="flex items-start justify-between px-6 pt-6 pb-4">
-      <div>
+    <div className="flex flex-col gap-3 px-4 pt-5 pb-4 sm:flex-row sm:items-start sm:justify-between sm:px-6 sm:pt-6">
+      <div className="min-w-0">
         <h1 className="page-title">{title}</h1>
         {subtitle && <p className="text-sm text-ink-muted mt-0.5">{subtitle}</p>}
       </div>
-      {action}
+      {action && <div className="shrink-0 sm:pt-0">{action}</div>}
     </div>
   )
 }
@@ -43,14 +43,14 @@ export function StatCard({ label, value, sub, color = 'default', icon: Icon }) {
     yellow:  'text-warning',
   }
   return (
-    <div className="card p-5">
+    <div className="card p-4 sm:p-5">
       <div className="flex items-start justify-between mb-2">
         <span className="text-xs font-medium text-ink-muted">{label}</span>
         {Icon && <div className="w-8 h-8 rounded-lg bg-surface-muted flex items-center justify-center">
           <Icon size={15} className="text-ink-muted"/>
         </div>}
       </div>
-      <div className={`text-3xl font-semibold ${colors[color]}`}>{value}</div>
+      <div className={`text-2xl font-semibold sm:text-3xl ${colors[color]}`}>{value}</div>
       {sub && <div className="text-xs text-ink-faint mt-1">{sub}</div>}
     </div>
   )
@@ -104,7 +104,7 @@ export function Spinner() {
 
 export function SearchBar({ value, onChange, placeholder, children }) {
   return (
-    <div className="flex gap-2 mb-4">
+    <div className="flex flex-col gap-2 mb-4 sm:flex-row">
       <input
         className="input flex-1"
         value={value}

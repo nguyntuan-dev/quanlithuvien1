@@ -189,7 +189,7 @@ export default function MuonTraPage() {
           </button>
         }
       />
-      <div className="px-6">
+      <div className="px-4 sm:px-6">
         {/* Tab filter */}
         <div className="flex gap-1 mb-4 bg-surface-muted p-1 rounded-lg w-fit">
           {[['tat_ca','Tất cả'],['DANG_MUON','Đang mượn'],['CHO_TRA','Chờ trả'],['QUA_HAN','Quá hạn'],['DA_TRA','Đã trả']].map(([v,l]) => (

@@ -15,7 +15,7 @@
     @apply bg-surface rounded-xl border border-border shadow-card;
   }
   .btn {
-    @apply inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all duration-150 cursor-pointer border;
+    @apply inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all duration-150 cursor-pointer border;
   }
   .btn-primary {
     @apply bg-primary text-white border-primary hover:bg-primary-hover;
@@ -59,9 +59,52 @@
     @apply bg-primary-light text-primary;
   }
   .page-title {
-    @apply text-xl font-semibold text-ink;
+    @apply text-lg font-semibold text-ink sm:text-xl;
   }
   .section-title {
     @apply text-sm font-semibold text-ink mb-4;
+  }
+}
+
+@layer utilities {
+  @media (max-width: 640px) {
+    .btn {
+      @apply px-3 py-2 text-xs;
+    }
+
+    .card {
+      @apply rounded-lg;
+    }
+
+    .card:has(table) {
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+    }
+
+    .card table {
+      min-width: 720px;
+    }
+
+    .th {
+      @apply px-3 py-2 text-[11px] whitespace-nowrap;
+    }
+
+    .td {
+      @apply px-3 py-2 text-xs;
+    }
+
+    .grid.grid-cols-2:not(.keep-mobile-cols) {
+      grid-template-columns: minmax(0, 1fr);
+    }
+
+    .grid.grid-cols-\[220px_1fr_120px\] {
+      grid-template-columns: minmax(0, 1fr);
+    }
+
+    .flex.w-fit {
+      max-width: 100%;
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+    }
   }
 }

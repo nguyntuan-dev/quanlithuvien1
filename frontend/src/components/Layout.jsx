@@ -1,8 +1,9 @@
+import { useState } from 'react'
 import { Outlet, NavLink, Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../hooks/useAuth'
 import {
   LayoutDashboard, BookOpen, Users, BookMarked, Clock, AlertTriangle,
-  BarChart2, UserCheck, LogOut, Search, History, Settings, Heart
+  BarChart2, UserCheck, LogOut, Search, History, Settings, Heart, Menu, X
 } from 'lucide-react'
 import logo from '../assets/logo-small.png'
 
@@ -25,6 +26,7 @@ const NAV = [
 export default function Layout() {
   const { user, logout } = useAuth()
   const navigate = useNavigate()
+  const [navOpen, setNavOpen] = useState(false)
   const isReader = user?.vai_tro === 'doc_gia'
   const visibleNav = NAV.filter(item => {
     if (item.adminOnly) return user?.la_admin
@@ -38,16 +40,18 @@ export default function Layout() {
     navigate('/login')
   }
 
+  const closeNav = () => setNavOpen(false)
+
   if (isReader) {
     return (
       <div className="min-h-screen bg-[#f7f7f4] text-[#1f1f1f]">
         <header className="sticky top-0 z-30 border-b border-[#ece8dc] bg-white/95 backdrop-blur">
-          <div className="mx-auto flex h-14 max-w-6xl items-center justify-between px-6">
+          <div className="mx-auto flex min-h-14 max-w-6xl flex-wrap items-center justify-between gap-2 px-4 py-2 sm:px-6">
             <Link to="/tra-cuu" className="flex items-center gap-2 text-sm font-bold tracking-wide text-[#171717]">
               <img src={logo} alt="Logo" className="w-6 h-6 object-contain" />
               Thư Viện
             </Link>
-            <nav className="flex items-center gap-1 text-[11px] font-semibold uppercase tracking-wide text-[#777166]">
+            <nav className="-mx-1 flex max-w-full items-center gap-1 overflow-x-auto text-[11px] font-semibold uppercase tracking-wide text-[#777166]">
               <NavLink to="/tra-cuu" className={({ isActive }) => `px-3 py-2 transition ${isActive ? 'bg-[#d8c981] text-white' : 'hover:text-[#1f1f1f]'}`}>
                 Sách
               </NavLink>
@@ -72,14 +76,34 @@ export default function Layout() {
   }
 
   return (
-    <div className="flex h-screen overflow-hidden bg-surface-soft">
-      <aside className="w-56 flex flex-col bg-surface border-r border-border shrink-0">
+    <div className="min-h-screen bg-surface-soft lg:flex lg:h-screen lg:overflow-hidden">
+      <header className="sticky top-0 z-30 flex h-14 items-center justify-between border-b border-border bg-surface px-4 lg:hidden">
+        <Link to="/" className="flex min-w-0 items-center gap-2.5">
+          <img src={logo} alt="Logo" className="h-8 w-8 rounded-lg object-contain" />
+          <div className="min-w-0">
+            <div className="truncate text-sm font-semibold leading-none">Thu Vien</div>
+            <div className="mt-0.5 truncate text-[10px] text-ink-faint">Quan ly thu vien</div>
+          </div>
+        </Link>
+        <button type="button" className="btn btn-ghost p-2" onClick={() => setNavOpen(true)} aria-label="Mo menu">
+          <Menu size={18} />
+        </button>
+      </header>
+
+      {navOpen && (
+        <button type="button" className="fixed inset-0 z-40 bg-black/35 lg:hidden" onClick={closeNav} aria-label="Dong menu" />
+      )}
+
+      <aside className={`fixed inset-y-0 left-0 z-50 flex w-64 max-w-[85vw] flex-col border-r border-border bg-surface transition-transform lg:static lg:z-auto lg:w-56 lg:max-w-none lg:translate-x-0 ${navOpen ? 'translate-x-0' : '-translate-x-full'}`}>
         <div className="h-14 flex items-center gap-2.5 px-4 border-b border-border shrink-0">
           <img src={logo} alt="Logo" className="w-8 h-8 rounded-lg object-contain" />
-          <div>
+          <div className="min-w-0 flex-1">
             <div className="text-sm font-semibold leading-none">Thư Viện</div>
             <div className="text-[10px] text-ink-faint mt-0.5">Quản lý thư viện</div>
           </div>
+          <button type="button" className="btn btn-ghost p-1.5 lg:hidden" onClick={closeNav} aria-label="Dong menu">
+            <X size={16} />
+          </button>
         </div>
 
         <nav className="flex-1 overflow-y-auto py-3 px-2 space-y-0.5">
@@ -89,6 +113,7 @@ export default function Layout() {
               to={to}
               end={exact}
               className={({ isActive }) => 'sidebar-link ' + (isActive ? 'active' : '')}
+              onClick={closeNav}
             >
               <Icon size={16} strokeWidth={1.8} />
               {isReader && readerLabel ? readerLabel : label}
@@ -112,7 +137,7 @@ export default function Layout() {
         </div>
       </aside>
 
-      <main className="flex-1 overflow-y-auto">
+      <main className="min-w-0 flex-1 lg:overflow-y-auto">
         <Outlet />
       </main>
     </div>

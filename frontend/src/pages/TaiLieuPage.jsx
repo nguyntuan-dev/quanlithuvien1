@@ -120,7 +120,7 @@ export default function TaiLieuPage() {
         subtitle={`${items.length} tài liệu`}
         action={<button className="btn btn-primary" onClick={openNew}><Plus size={15} />Thêm tài liệu</button>}
       />
-      <div className="px-6">
+      <div className="px-4 sm:px-6">
         <SearchBar value={q} onChange={setQ} placeholder="Tìm theo tên, mã tài liệu..." />
         <div className="card overflow-hidden">
           <table className="w-full">
