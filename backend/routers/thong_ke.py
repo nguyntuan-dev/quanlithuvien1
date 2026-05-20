@@ -3,12 +3,13 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func
 from database import get_db
 from models import TaiLieu, DocGia, PhieuMuon, ViPhamPhat, TrangThaiPhieu, TrangThaiThe, TrangThaiPhat, DatTruoc
+from routers.auth import get_current_nhan_vien
 from schemas import ThongKeOut
 
 router = APIRouter()
 
 @router.get("/tong-quan", response_model=ThongKeOut)
-def tong_quan(db: Session = Depends(get_db)):
+def tong_quan(db: Session = Depends(get_db), current=Depends(get_current_nhan_vien)):
     tong_tl  = db.query(TaiLieu).count()
     dg_hl    = db.query(DocGia).filter(DocGia.trang_thai_the == TrangThaiThe.CON_HIEU_LUC).count()
     dang_muon = db.query(PhieuMuon).filter(PhieuMuon.trang_thai == TrangThaiPhieu.DANG_MUON).count()
@@ -27,7 +28,7 @@ def tong_quan(db: Session = Depends(get_db)):
     )
 
 @router.get("/muon-theo-thang")
-def muon_theo_thang(db: Session = Depends(get_db)):
+def muon_theo_thang(db: Session = Depends(get_db), current=Depends(get_current_nhan_vien)):
     # Group và Order theo date_trunc để đảm bảo thứ tự thời gian chính xác
     rows = db.query(
         func.date_trunc('month', PhieuMuon.created_at).label("thang_raw"),
@@ -40,7 +41,7 @@ def muon_theo_thang(db: Session = Depends(get_db)):
     ]
 
 @router.get("/top-tai-lieu")
-def top_tai_lieu(db: Session = Depends(get_db)):
+def top_tai_lieu(db: Session = Depends(get_db), current=Depends(get_current_nhan_vien)):
     from models import ChiTietPhieuMuon
     rows = db.query(
         TaiLieu.ten_tai_lieu,

@@ -33,6 +33,7 @@ from schemas import (
     ViPhamOut,
     VietQRThanhToanOut,
 )
+from routers.auth import get_current_nhan_vien, get_current_principal
 from services.automation import (
     BROKEN_BOOK_COEFFICIENT,
     LOST_BOOK_COEFFICIENT,
@@ -323,12 +324,26 @@ def mark_fine_paid(db: Session, vp: ViPhamPhat, actor: str, detail: str = "") ->
     return True
 
 
+def ensure_fine_access(vp: ViPhamPhat, principal):
+    kind, account = principal
+    if kind == "doc_gia":
+        owner_id = vp.phieu_muon.ma_doc_gia if vp.phieu_muon else None
+        if owner_id != account.ma_doc_gia:
+            raise HTTPException(status_code=403, detail="Khong co quyen truy cap vi pham cua doc gia khac")
+
+
 @router.get("/", response_model=List[ViPhamOut])
 def danh_sach(
     trang_thai: Optional[str] = None,
     ma_doc_gia: Optional[str] = None,
     db: Session = Depends(get_db),
+    principal=Depends(get_current_principal),
 ):
+    kind, account = principal
+    if kind == "doc_gia":
+        if ma_doc_gia and ma_doc_gia != account.ma_doc_gia:
+            raise HTTPException(status_code=403, detail="Khong co quyen xem vi pham cua doc gia khac")
+        ma_doc_gia = account.ma_doc_gia
     q = db.query(ViPhamPhat).join(ViPhamPhat.phieu_muon).options(
         joinedload(ViPhamPhat.phieu_muon).joinedload(PhieuMuon.doc_gia),
         joinedload(ViPhamPhat.phieu_muon).joinedload(PhieuMuon.chi_tiet).joinedload(ChiTietPhieuMuon.tai_lieu),
@@ -345,7 +360,7 @@ def danh_sach(
 
 
 @router.post("/", response_model=ViPhamOut, status_code=201)
-def tao_vi_pham(req: ViPhamCreate, db: Session = Depends(get_db)):
+def tao_vi_pham(req: ViPhamCreate, db: Session = Depends(get_db), current=Depends(get_current_nhan_vien)):
     pm = db.query(PhieuMuon).options(
         joinedload(PhieuMuon.chi_tiet).joinedload(ChiTietPhieuMuon.tai_lieu)
     ).filter(PhieuMuon.ma_phieu_muon == req.ma_phieu_muon).first()
@@ -386,10 +401,11 @@ def tao_vi_pham(req: ViPhamCreate, db: Session = Depends(get_db)):
 
 
 @router.get("/{ma}/vietqr", response_model=VietQRThanhToanOut)
-def lay_vietqr(ma: str, db: Session = Depends(get_db)):
-    vp = db.query(ViPhamPhat).filter(ViPhamPhat.ma_phat == ma).first()
+def lay_vietqr(ma: str, db: Session = Depends(get_db), principal=Depends(get_current_principal)):
+    vp = db.query(ViPhamPhat).options(joinedload(ViPhamPhat.phieu_muon)).filter(ViPhamPhat.ma_phat == ma).first()
     if not vp:
         raise HTTPException(status_code=404, detail="Không tìm thấy vi phạm")
+    ensure_fine_access(vp, principal)
     if vp.trang_thai_thanh_toan == TrangThaiPhat.DA_THANH_TOAN:
         raise HTTPException(status_code=400, detail="Vi phạm này đã thanh toán")
 
@@ -418,10 +434,11 @@ def lay_vietqr(ma: str, db: Session = Depends(get_db)):
 
 
 @router.get("/{ma}/thanh-toan/status", response_model=ThanhToanPhatStatusOut)
-def trang_thai_thanh_toan(ma: str, db: Session = Depends(get_db)):
-    vp = db.query(ViPhamPhat).filter(ViPhamPhat.ma_phat == ma).first()
+def trang_thai_thanh_toan(ma: str, db: Session = Depends(get_db), principal=Depends(get_current_principal)):
+    vp = db.query(ViPhamPhat).options(joinedload(ViPhamPhat.phieu_muon)).filter(ViPhamPhat.ma_phat == ma).first()
     if not vp:
         raise HTTPException(status_code=404, detail="Không tìm thấy vi phạm")
+    ensure_fine_access(vp, principal)
     return ThanhToanPhatStatusOut(
         ma_phat=vp.ma_phat,
         trang_thai_thanh_toan=vp.trang_thai_thanh_toan,
@@ -437,7 +454,7 @@ def webhook_thanh_toan(
 ):
     expected_token = get_setting(db, "vietqr_webhook_token", "VIETQR_WEBHOOK_TOKEN", "")
     payos_signature_ok = verify_payos_webhook_signature(db, payload)
-    if expected_token and x_webhook_token != expected_token and not payos_signature_ok:
+    if not payos_signature_ok and (not expected_token or x_webhook_token != expected_token):
         raise HTTPException(status_code=401, detail="Webhook token không hợp lệ")
 
     if payload.get("success") is False or payload.get("code") not in (None, "00"):
@@ -518,7 +535,7 @@ def webhook_thanh_toan(
 
 
 @router.put("/{ma}/thanh-toan", response_model=ViPhamOut)
-def thanh_toan(ma: str, db: Session = Depends(get_db)):
+def thanh_toan(ma: str, db: Session = Depends(get_db), current=Depends(get_current_nhan_vien)):
     vp = db.query(ViPhamPhat).options(
         joinedload(ViPhamPhat.phieu_muon).joinedload(PhieuMuon.doc_gia),
         joinedload(ViPhamPhat.phieu_muon).joinedload(PhieuMuon.chi_tiet),

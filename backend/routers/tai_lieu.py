@@ -4,6 +4,7 @@ from sqlalchemy import or_
 from typing import List, Optional
 from database import get_db
 from models import TaiLieu, TacGia, TheLoai, NhaXuatBan, BanSaoTaiLieu, TrangThaiTaiLieu
+from routers.auth import get_current_nhan_vien
 from schemas import TaiLieuCreate, TaiLieuUpdate, TaiLieuOut, TacGiaOut, TheLoaiOut, NXBOut, BanSaoCreate, BanSaoOut
 import uuid
 
@@ -26,7 +27,7 @@ def ds_tac_gia(db: Session = Depends(get_db)):
     return db.query(TacGia).all()
 
 @router.post("/meta/tac-gia", response_model=TacGiaOut, status_code=201)
-def them_tac_gia(ten: str, ghi_chu: Optional[str] = None, db: Session = Depends(get_db)):
+def them_tac_gia(ten: str, ghi_chu: Optional[str] = None, db: Session = Depends(get_db), current=Depends(get_current_nhan_vien)):
     ma = "TG" + uuid.uuid4().hex[:6].upper()
     tg = TacGia(ma_tac_gia=ma, ten_tac_gia=ten, ghi_chu=ghi_chu)
     db.add(tg); db.commit(); db.refresh(tg)
@@ -37,7 +38,7 @@ def ds_the_loai(db: Session = Depends(get_db)):
     return db.query(TheLoai).all()
 
 @router.post("/meta/the-loai", response_model=TheLoaiOut, status_code=201)
-def them_the_loai(ma: str, ten: str, db: Session = Depends(get_db)):
+def them_the_loai(ma: str, ten: str, db: Session = Depends(get_db), current=Depends(get_current_nhan_vien)):
     tl = TheLoai(ma_the_loai=ma, ten_the_loai=ten)
     db.add(tl); db.commit(); db.refresh(tl)
     return tl
@@ -47,7 +48,7 @@ def ds_nxb(db: Session = Depends(get_db)):
     return db.query(NhaXuatBan).all()
 
 @router.post("/meta/nha-xuat-ban", response_model=NXBOut, status_code=201)
-def them_nxb(ma: str, ten: str, dia_chi: Optional[str] = None, db: Session = Depends(get_db)):
+def them_nxb(ma: str, ten: str, dia_chi: Optional[str] = None, db: Session = Depends(get_db), current=Depends(get_current_nhan_vien)):
     nxb = NhaXuatBan(ma_nxb=ma, ten_nxb=ten, dia_chi=dia_chi)
     db.add(nxb); db.commit(); db.refresh(nxb)
     return nxb
@@ -80,14 +81,14 @@ def danh_sach(
     return query.offset(skip).limit(limit).all()
 
 @router.get("/ban-sao/", response_model=List[BanSaoOut])
-def ds_ban_sao(ma_tai_lieu: Optional[str] = None, db: Session = Depends(get_db)):
+def ds_ban_sao(ma_tai_lieu: Optional[str] = None, db: Session = Depends(get_db), current=Depends(get_current_nhan_vien)):
     q = db.query(BanSaoTaiLieu).options(joinedload(BanSaoTaiLieu.tai_lieu))
     if ma_tai_lieu:
         q = q.filter(BanSaoTaiLieu.ma_tai_lieu == ma_tai_lieu)
     return q.order_by(BanSaoTaiLieu.created_at.desc()).all()
 
 @router.post("/ban-sao/", response_model=BanSaoOut, status_code=201)
-def them_ban_sao(req: BanSaoCreate, db: Session = Depends(get_db)):
+def them_ban_sao(req: BanSaoCreate, db: Session = Depends(get_db), current=Depends(get_current_nhan_vien)):
     tl = db.query(TaiLieu).filter(TaiLieu.ma_tai_lieu == req.ma_tai_lieu).first()
     if not tl:
         raise HTTPException(404, "Không tìm thấy tài liệu")
@@ -104,7 +105,7 @@ def them_ban_sao(req: BanSaoCreate, db: Session = Depends(get_db)):
     return bs
 
 @router.delete("/ban-sao/{ma}", status_code=204)
-def xoa_ban_sao(ma: str, db: Session = Depends(get_db)):
+def xoa_ban_sao(ma: str, db: Session = Depends(get_db), current=Depends(get_current_nhan_vien)):
     bs = db.query(BanSaoTaiLieu).filter(BanSaoTaiLieu.ma_ban_sao == ma).first()
     if not bs:
         raise HTTPException(404, "Không tìm thấy bản sao")
@@ -148,7 +149,7 @@ def handle_relations(data: dict, db: Session):
     return data
 
 @router.post("/", response_model=TaiLieuOut, status_code=201)
-def them_moi(req: TaiLieuCreate, db: Session = Depends(get_db)):
+def them_moi(req: TaiLieuCreate, db: Session = Depends(get_db), current=Depends(get_current_nhan_vien)):
     ma = req.ma_tai_lieu or gen_ma()
     if db.query(TaiLieu).filter(TaiLieu.ma_tai_lieu == ma).first():
         raise HTTPException(400, "Mã tài liệu đã tồn tại")
@@ -168,7 +169,7 @@ def chi_tiet(ma: str, db: Session = Depends(get_db)):
     return tl
 
 @router.put("/{ma}", response_model=TaiLieuOut)
-def cap_nhat(ma: str, req: TaiLieuUpdate, db: Session = Depends(get_db)):
+def cap_nhat(ma: str, req: TaiLieuUpdate, db: Session = Depends(get_db), current=Depends(get_current_nhan_vien)):
     tl = db.query(TaiLieu).filter(TaiLieu.ma_tai_lieu == ma).first()
     if not tl:
         raise HTTPException(404, "Không tìm thấy tài liệu")
@@ -182,7 +183,7 @@ def cap_nhat(ma: str, req: TaiLieuUpdate, db: Session = Depends(get_db)):
     return load_one(db, ma)
 
 @router.delete("/{ma}", status_code=204)
-def xoa(ma: str, db: Session = Depends(get_db)):
+def xoa(ma: str, db: Session = Depends(get_db), current=Depends(get_current_nhan_vien)):
     tl = db.query(TaiLieu).filter(TaiLieu.ma_tai_lieu == ma).first()
     if not tl:
         raise HTTPException(404, "Không tìm thấy tài liệu")

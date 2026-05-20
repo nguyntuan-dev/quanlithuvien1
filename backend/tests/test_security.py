@@ -187,40 +187,36 @@ _, c = call("GET", "/api/tai-lieu/?limit=1")
 open_tl = c == 200
 print(
     f"[{'WARN' if open_tl else 'OK'}] GET tai-lieu without auth: HTTP {c} "
-    "(no auth on router = anyone can read catalog)"
+    "(public catalog read is expected)"
 )
 
 _, c = call("GET", "/api/vi-pham/vi-pham/?limit=1")
-open_vp = c == 200
-print(
-    f"[{'WARN' if open_vp else 'OK'}] GET vi-pham without auth: HTTP {c} "
-    "(violations list is public if 200)"
-)
-
-_, c = call("POST", "/api/muon-tra/", body={})
-if not expect("POST muon-tra empty JSON without auth", c, 422):
+if not expect("GET vi-pham without auth", c, 401):
     failures += 1
 
-# Public password reset: only email + new password (no proof of ownership)
+_, c = call("POST", "/api/muon-tra/", body={})
+if not expect("POST muon-tra empty JSON without auth", c, 401):
+    failures += 1
+
+# Public password reset must stay disabled.
 _, c = call(
     "POST",
     "/api/auth/doi-mat-khau",
     body={"email": SEC_EMAIL, "mat_khau_moi": SEC_PASS_RESET},
 )
-if not expect("POST doi-mat-khau without old password", c, 200):
+if not expect("POST doi-mat-khau without old password", c, 410):
     failures += 1
 
 _, c = call(
     "POST",
     "/api/auth/doc-gia/dang-nhap",
-    body={"email": SEC_EMAIL, "mat_khau": SEC_PASS_RESET},
+    body={"email": SEC_EMAIL, "mat_khau": SEC_PASS},
 )
-if not expect("Reader login after public reset", c, 200):
+if not expect("Reader original password still works after blocked public reset", c, 200):
     failures += 1
 
 print("")
-print("RISK: POST /api/auth/doi-mat-khau resets password knowing email only.")
-print("      Mitigate: OTP email, signed reset link, or disable in production.")
+print("OK: POST /api/auth/doi-mat-khau is disabled for unauthenticated reset.")
 print("")
 
 cleanup_sec_reader()

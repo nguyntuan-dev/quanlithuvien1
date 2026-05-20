@@ -20,6 +20,7 @@ from models import (
 from schemas import PhieuMuonCreate, PhieuMuonOut, TraSachRequest
 from services.automation import process_reservation_queue
 from services.muon_tra_validators import MuonTraValidator
+from routers.auth import get_current_nhan_vien, get_current_principal
 
 router = APIRouter()
 
@@ -40,8 +41,14 @@ def load_phieu(db: Session, ma: str):
     return phieu
 
 
+def ensure_phieu_access(phieu: PhieuMuon, principal):
+    kind, account = principal
+    if kind == "doc_gia" and phieu.ma_doc_gia != account.ma_doc_gia:
+        raise HTTPException(403, "Khong co quyen truy cap phieu muon cua doc gia khac")
+
+
 @router.get("/qua-han", response_model=List[PhieuMuonOut])
-def phieu_qua_han(db: Session = Depends(get_db)):
+def phieu_qua_han(db: Session = Depends(get_db), current=Depends(get_current_nhan_vien)):
     today = date.today()
     items = db.query(PhieuMuon).options(
         joinedload(PhieuMuon.doc_gia).joinedload(DocGia.the_thu_vien),
@@ -64,7 +71,13 @@ def danh_sach(
     skip: int = 0,
     limit: int = 50,
     db: Session = Depends(get_db),
+    principal=Depends(get_current_principal),
 ):
+    kind, account = principal
+    if kind == "doc_gia":
+        if ma_doc_gia and ma_doc_gia != account.ma_doc_gia:
+            raise HTTPException(403, "Khong co quyen xem phieu muon cua doc gia khac")
+        ma_doc_gia = account.ma_doc_gia
     query = db.query(PhieuMuon).options(
         joinedload(PhieuMuon.doc_gia).joinedload(DocGia.the_thu_vien),
         joinedload(PhieuMuon.chi_tiet).joinedload(ChiTietPhieuMuon.tai_lieu),
@@ -82,7 +95,10 @@ def danh_sach(
 
 
 @router.get("/lich-su/{ma_doc_gia}", response_model=List[PhieuMuonOut])
-def lich_su_doc_gia(ma_doc_gia: str, db: Session = Depends(get_db)):
+def lich_su_doc_gia(ma_doc_gia: str, db: Session = Depends(get_db), principal=Depends(get_current_principal)):
+    kind, account = principal
+    if kind == "doc_gia" and ma_doc_gia != account.ma_doc_gia:
+        raise HTTPException(403, "Khong co quyen xem lich su cua doc gia khac")
     rows = db.query(PhieuMuon).options(
         joinedload(PhieuMuon.doc_gia).joinedload(DocGia.the_thu_vien),
         joinedload(PhieuMuon.chi_tiet).joinedload(ChiTietPhieuMuon.tai_lieu),
@@ -95,7 +111,7 @@ def lich_su_doc_gia(ma_doc_gia: str, db: Session = Depends(get_db)):
 
 
 @router.get("/dat-truoc/{ma}", response_model=dict)
-def get_reservation_info(ma: str, db: Session = Depends(get_db)):
+def get_reservation_info(ma: str, db: Session = Depends(get_db), current=Depends(get_current_nhan_vien)):
     reservation = db.query(DatTruoc).options(
         joinedload(DatTruoc.doc_gia),
         joinedload(DatTruoc.tai_lieu),
@@ -115,18 +131,20 @@ def get_reservation_info(ma: str, db: Session = Depends(get_db)):
 
 
 @router.get("/{ma}", response_model=PhieuMuonOut)
-def chi_tiet(ma: str, db: Session = Depends(get_db)):
+def chi_tiet(ma: str, db: Session = Depends(get_db), principal=Depends(get_current_principal)):
     phieu = load_phieu(db, ma)
     if not phieu:
         raise HTTPException(404, "Không tìm thấy phiếu mượn")
+    ensure_phieu_access(phieu, principal)
     return phieu
 
 
 @router.put("/{ma}/gia-han", response_model=PhieuMuonOut)
-def gia_han(ma: str, db: Session = Depends(get_db)):
+def gia_han(ma: str, db: Session = Depends(get_db), principal=Depends(get_current_principal)):
     phieu = load_phieu(db, ma)
     if not phieu:
         raise HTTPException(404, "Không tìm thấy phiếu mượn")
+    ensure_phieu_access(phieu, principal)
     days = MuonTraValidator(db).validate_extension(phieu)
     phieu.han_tra = phieu.han_tra + timedelta(days=days)
     if phieu.han_tra >= date.today():
@@ -136,7 +154,7 @@ def gia_han(ma: str, db: Session = Depends(get_db)):
 
 
 @router.post("/", response_model=PhieuMuonOut, status_code=201)
-def lap_phieu_muon(req: PhieuMuonCreate, db: Session = Depends(get_db)):
+def lap_phieu_muon(req: PhieuMuonCreate, db: Session = Depends(get_db), current=Depends(get_current_nhan_vien)):
     validation = MuonTraValidator(db).validate_borrow(req)
     staff = db.query(NhanVien).first()
     ma = gen_ma()
@@ -173,10 +191,11 @@ def lap_phieu_muon(req: PhieuMuonCreate, db: Session = Depends(get_db)):
 
 
 @router.put("/{ma}/yeu-cau-tra", response_model=PhieuMuonOut)
-def yeu_cau_tra(ma: str, db: Session = Depends(get_db)):
+def yeu_cau_tra(ma: str, db: Session = Depends(get_db), principal=Depends(get_current_principal)):
     phieu = load_phieu(db, ma)
     if not phieu:
         raise HTTPException(404, "Không tìm thấy phiếu mượn")
+    ensure_phieu_access(phieu, principal)
     if phieu.trang_thai not in (TrangThaiPhieu.DANG_MUON, TrangThaiPhieu.QUA_HAN):
         raise HTTPException(400, "Chi co the yeu cau tra phieu dang muon")
     if phieu.han_tra < date.today():
@@ -188,7 +207,7 @@ def yeu_cau_tra(ma: str, db: Session = Depends(get_db)):
 
 
 @router.post("/tra-sach", response_model=PhieuMuonOut)
-def tra_sach(req: TraSachRequest, db: Session = Depends(get_db)):
+def tra_sach(req: TraSachRequest, db: Session = Depends(get_db), current=Depends(get_current_nhan_vien)):
     validation = MuonTraValidator(db).validate_return(req)
     phieu = validation.phieu_muon
     phieu.trang_thai = TrangThaiPhieu.DA_TRA

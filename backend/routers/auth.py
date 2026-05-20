@@ -76,6 +76,30 @@ def get_current_doc_gia(
         raise HTTPException(status_code=401, detail="Tài khoản không tồn tại")
     return dg
 
+def get_current_principal(
+    authorization: str | None = Header(default=None),
+    db: Session = Depends(get_db),
+):
+    if not authorization or not authorization.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Chua dang nhap")
+
+    token = authorization.removeprefix("Bearer ").strip()
+    info = TOKENS.get(token)
+    if not info:
+        raise HTTPException(status_code=401, detail="Phien dang nhap khong hop le")
+
+    kind, uid = info
+    if kind == "nhan_vien":
+        account = db.query(NhanVien).filter(NhanVien.ma_nhan_vien == uid).first()
+    elif kind == "doc_gia":
+        account = db.query(DocGia).filter(DocGia.ma_doc_gia == uid).first()
+    else:
+        raise HTTPException(status_code=401, detail="Phien dang nhap khong hop le")
+
+    if not account:
+        raise HTTPException(status_code=401, detail="Tai khoan khong ton tai")
+    return kind, account
+
 def require_admin(current: NhanVien = Depends(get_current_nhan_vien)) -> NhanVien:
     if not current.la_admin:
         raise HTTPException(status_code=403, detail="Chỉ Admin mới có quyền thực hiện thao tác này")
@@ -242,20 +266,10 @@ def cap_nhat_ca_nhan_nhan_vien(
 
 @router.post("/doi-mat-khau")
 def doi_mat_khau(req: DoiMatKhauRequest, db: Session = Depends(get_db)):
-    if not req.email or not req.mat_khau_moi:
-        raise HTTPException(status_code=400, detail="Email và mật khẩu mới là bắt buộc")
-    if len(req.mat_khau_moi) < 6:
-        raise HTTPException(status_code=400, detail="Mật khẩu mới phải có ít nhất 6 ký tự")
-
-    account = db.query(DocGia).filter(DocGia.email == req.email).first()
-    if not account:
-        account = db.query(NhanVien).filter(NhanVien.email == req.email).first()
-    if not account:
-        raise HTTPException(status_code=404, detail="Không tìm thấy tài khoản với email này")
-
-    account.mat_khau_hash = hash_password(req.mat_khau_moi)
-    db.commit()
-    return {"message": "Đổi mật khẩu thành công"}
+    raise HTTPException(
+        status_code=410,
+        detail="Public password reset is disabled. Please sign in and use the personal password change endpoint.",
+    )
 
 @router.post("/tao-tai-khoan", response_model=NhanVienOut)
 def tao_tai_khoan(

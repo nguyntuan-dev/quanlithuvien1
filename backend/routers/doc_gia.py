@@ -5,6 +5,7 @@ from typing import List, Optional
 from datetime import date
 from database import get_db
 from models import DocGia, TheThuvien, TrangThaiThe
+from routers.auth import get_current_nhan_vien
 from schemas import DocGiaCreate, DocGiaUpdate, DocGiaOut
 import uuid
 import hashlib
@@ -22,7 +23,8 @@ def danh_sach(
     q: Optional[str] = None,
     trang_thai: Optional[TrangThaiThe] = None,
     skip: int = 0, limit: int = 50,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current=Depends(get_current_nhan_vien),
 ):
     query = db.query(DocGia).options(joinedload(DocGia.the_thu_vien))
     if q:
@@ -37,14 +39,14 @@ def danh_sach(
     return query.offset(skip).limit(limit).all()
 
 @router.get("/{ma}", response_model=DocGiaOut)
-def chi_tiet(ma: str, db: Session = Depends(get_db)):
+def chi_tiet(ma: str, db: Session = Depends(get_db), current=Depends(get_current_nhan_vien)):
     dg = db.query(DocGia).options(joinedload(DocGia.the_thu_vien)).filter(DocGia.ma_doc_gia == ma).first()
     if not dg:
         raise HTTPException(status_code=404, detail="Không tìm thấy độc giả")
     return dg
 
 @router.post("/", response_model=DocGiaOut, status_code=201)
-def them_moi(req: DocGiaCreate, db: Session = Depends(get_db)):
+def them_moi(req: DocGiaCreate, db: Session = Depends(get_db), current=Depends(get_current_nhan_vien)):
     ma = gen_ma_dg()
     dg = DocGia(
         ma_doc_gia=ma,
@@ -76,7 +78,7 @@ def them_moi(req: DocGiaCreate, db: Session = Depends(get_db)):
     return db.query(DocGia).options(joinedload(DocGia.the_thu_vien)).filter(DocGia.ma_doc_gia == ma).first()
 
 @router.put("/{ma}", response_model=DocGiaOut)
-def cap_nhat(ma: str, req: DocGiaUpdate, db: Session = Depends(get_db)):
+def cap_nhat(ma: str, req: DocGiaUpdate, db: Session = Depends(get_db), current=Depends(get_current_nhan_vien)):
     dg = db.query(DocGia).options(joinedload(DocGia.the_thu_vien)).filter(DocGia.ma_doc_gia == ma).first()
     if not dg:
         raise HTTPException(status_code=404, detail="Không tìm thấy độc giả")
@@ -89,7 +91,7 @@ def cap_nhat(ma: str, req: DocGiaUpdate, db: Session = Depends(get_db)):
     return db.query(DocGia).options(joinedload(DocGia.the_thu_vien)).filter(DocGia.ma_doc_gia == ma).first()
 
 @router.delete("/{ma}", status_code=204)
-def xoa(ma: str, db: Session = Depends(get_db)):
+def xoa(ma: str, db: Session = Depends(get_db), current=Depends(get_current_nhan_vien)):
     dg = db.query(DocGia).filter(DocGia.ma_doc_gia == ma).first()
     if not dg:
         raise HTTPException(status_code=404, detail="Không tìm thấy độc giả")
